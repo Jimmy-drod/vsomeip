@@ -76,7 +76,6 @@ configuration_impl::configuration_impl(const std::string &_path)
       watchdog_(std::make_shared<watchdog>()),
       log_version_(true),
       log_version_interval_(10),
-      permissions_shm_(VSOMEIP_DEFAULT_SHM_PERMISSION),
       permissions_uds_(VSOMEIP_DEFAULT_UDS_PERMISSIONS),
       network_("vsomeip"),
       e2e_enabled_(false),
@@ -123,7 +122,6 @@ configuration_impl::configuration_impl(const configuration_impl &_other)
       max_reliable_message_size_(_other.max_reliable_message_size_),
       max_unreliable_message_size_(_other.max_unreliable_message_size_),
       buffer_shrink_threshold_(_other.buffer_shrink_threshold_),
-      permissions_shm_(VSOMEIP_DEFAULT_SHM_PERMISSION),
       permissions_uds_(VSOMEIP_DEFAULT_UDS_PERMISSIONS),
       endpoint_queue_limit_external_(_other.endpoint_queue_limit_external_),
       endpoint_queue_limit_local_(_other.endpoint_queue_limit_local_),
@@ -433,10 +431,9 @@ bool configuration_impl::remote_offer_info_add(service_t _service,
             if (!updated) {
                 services_[_service][_instance] = its_service;
                 VSOMEIP_INFO << "Added new remote configuration for service ["
-                        << std::hex << std::setw(4) << std::setfill('0')
-                        << its_service->service_ << "."
-                        << std::hex << std::setw(4) << std::setfill('0')
-                        << its_service->instance_ << "]";
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << its_service->service_ << "."
+                        << std::setw(4) << its_service->instance_ << "]";
             }
             if (_magic_cookies_enabled) {
                 magic_cookies_[its_service->unicast_address_].insert(its_service->reliable_);
@@ -835,9 +832,9 @@ configuration_impl::load_routing_host(const boost::property_tree::ptree &_tree,
         }
 
     } catch (...) {
-        return (false);
+        return false;
     }
-    return (true);
+    return true;
 }
 
 bool
@@ -863,7 +860,7 @@ configuration_impl::load_routing_guests(const boost::property_tree::ptree &_tree
     } catch (...) {
         // intentionally left empty
     }
-    return (true);
+    return true;
 }
 
 void
@@ -1571,8 +1568,8 @@ void configuration_impl::load_service_discovery(
                     int tmp;
                     its_converter << its_value;
                     its_converter >> tmp;
-                    sd_repetitions_max_ = (tmp > (std::numeric_limits<std::uint8_t>::max)()) ?
-                                    (std::numeric_limits<std::uint8_t>::max)() :
+                    sd_repetitions_max_ = (tmp > std::numeric_limits<std::uint8_t>::max()) ?
+                                    std::numeric_limits<std::uint8_t>::max() :
                                     static_cast<std::uint8_t>(tmp);
                     is_configured_[ET_SERVICE_DISCOVERY_REPETITION_MAX] = true;
                 }
@@ -1642,8 +1639,8 @@ void configuration_impl::load_service_discovery(
                     int tmp;
                     its_converter << its_value;
                     its_converter >> tmp;
-                    max_remote_subscribers_ = (tmp > (std::numeric_limits<std::uint8_t>::max)()) ?
-                                    (std::numeric_limits<std::uint8_t>::max)() :
+                    max_remote_subscribers_ = (tmp > std::numeric_limits<std::uint8_t>::max()) ?
+                                    std::numeric_limits<std::uint8_t>::max() :
                                     static_cast<std::uint8_t>(tmp);
                     if (max_remote_subscribers_ == 0) {
                         VSOMEIP_WARNING << "max_remote_subscribers_ = 0 is not allowed. Using default ("
@@ -1676,8 +1673,8 @@ void configuration_impl::load_delays(
                 its_converter >> tmp_repetition_max;
                 sd_repetitions_max_ =
                         (tmp_repetition_max
-                                > (std::numeric_limits<std::uint8_t>::max)()) ?
-                                        (std::numeric_limits<std::uint8_t>::max)() :
+                                > std::numeric_limits<std::uint8_t>::max()) ?
+                                        std::numeric_limits<std::uint8_t>::max() :
                                         static_cast<std::uint8_t>(tmp_repetition_max);
             } else if (its_key == "cyclic-offer") {
                 its_converter << std::dec << i->second.data();
@@ -2031,8 +2028,8 @@ void configuration_impl::load_eventgroup(
                 its_converter << std::dec << its_value;
                 its_converter >> std::dec >> its_threshold;
                 its_eventgroup->threshold_ =
-                        (its_threshold > (std::numeric_limits<std::uint8_t>::max)()) ?
-                                (std::numeric_limits<std::uint8_t>::max)() :
+                        (its_threshold > std::numeric_limits<std::uint8_t>::max()) ?
+                                std::numeric_limits<std::uint8_t>::max() :
                                 static_cast<uint8_t>(its_threshold);
             } else if (its_key == "events") {
                 for (auto k = j->second.begin(); k != j->second.end(); ++k) {
@@ -2428,11 +2425,7 @@ void configuration_impl::load_permissions(const configuration_element &_element)
                     ++i) {
                 std::string its_key(i->first);
                 std::stringstream its_converter;
-                if (its_key == "permissions-shm") {
-                    std::string its_value(i->second.data());
-                    its_converter << std::oct << its_value;
-                    its_converter >> permissions_shm_;
-                } else if (its_key == "permissions-uds") {
+                if (its_key == "permissions-uds") {
                     std::string its_value(i->second.data());
                     its_converter << std::oct << its_value;
                     its_converter >> permissions_uds_;
@@ -2568,10 +2561,9 @@ configuration_impl::load_partition(const boost::property_tree::ptree &_tree) {
                 for (const auto &m : p.second) {
                     partitions_[p.first][m] = its_partition_id;
                     its_log << "<"
-                            << std::setw(4) << std::setfill('0') << std::hex
-                            << p.first << "."
-                            << std::setw(4) << std::setfill('0') << std::hex
-                            << m
+                            << std::setfill('0') << std::hex
+                            << std::setw(4) << p.first << "."
+                            << std::setw(4) << m
                             << ">";
                 }
             }
@@ -2831,37 +2823,37 @@ bool configuration_impl::has_enabled_magic_cookies(const std::string &_address,
 }
 
 bool configuration_impl::is_routing_enabled() const {
-    return (routing_.is_enabled_);
+    return routing_.is_enabled_;
 }
 
 const std::string &
 configuration_impl::get_routing_host_name() const {
 
-    return (routing_.host_.name_);
+    return routing_.host_.name_;
 }
 
 const boost::asio::ip::address &
 configuration_impl::get_routing_host_address() const {
 
-    return (routing_.host_.unicast_);
+    return routing_.host_.unicast_;
 }
 
 port_t
 configuration_impl::get_routing_host_port() const {
 
-    return (routing_.host_.port_);
+    return routing_.host_.port_;
 }
 
 const boost::asio::ip::address &
 configuration_impl::get_routing_guest_address() const {
 
-    return (routing_.guests_.unicast_);
+    return routing_.guests_.unicast_;
 }
 
 std::set<std::pair<port_t, port_t> >
 configuration_impl::get_routing_guest_ports() const {
 
-    return (routing_.guests_.ports_);
+    return routing_.guests_.ports_;
 }
 
 bool
@@ -2874,7 +2866,7 @@ configuration_impl::is_local_routing() const {
     } catch (...) {
     }
 
-    return (is_local);
+    return is_local;
 }
 
 client_t configuration_impl::get_id(const std::string &_name) const {
@@ -2957,7 +2949,7 @@ bool configuration_impl::has_session_handling(const std::string &_name) const {
     if (found_application != applications_.end())
         its_value = found_application->second.has_session_handling_;
 
-    return (its_value);
+    return its_value;
 }
 
 std::set<std::pair<service_t, instance_t> >
@@ -3462,10 +3454,6 @@ std::uint32_t configuration_impl::get_permissions_uds() const {
     return permissions_uds_;
 }
 
-std::uint32_t configuration_impl::get_permissions_shm() const {
-    return permissions_shm_;
-}
-
 std::map<plugin_type_e, std::set<std::string>> configuration_impl::get_plugins(
             const std::string &_name) const {
 
@@ -3774,7 +3762,7 @@ configuration_impl::load_service_debounce(
 
     service_t its_service(0);
     instance_t its_instance(0);
-    std::map<event_t, std::shared_ptr<debounce_filter_t>> its_debounces;
+    std::map<event_t, std::shared_ptr<debounce_filter_impl_t>> its_debounces;
 
     for (auto i = _tree.begin(); i != _tree.end(); ++i) {
         std::string its_key(i->first);
@@ -3807,9 +3795,9 @@ configuration_impl::load_service_debounce(
             auto find_instance = find_service->second.find(its_instance);
             if (find_instance != find_service->second.end()) {
                 VSOMEIP_ERROR << "Multiple debounce configurations for service "
-                    << std::hex << std::setw(4) << std::setfill('0') << its_service
-                    << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << its_instance;
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << its_service << "."
+                    << std::setw(4) << its_instance;
                 return;
             }
         }
@@ -3820,7 +3808,7 @@ configuration_impl::load_service_debounce(
 void
 configuration_impl::load_events_debounce(
         const boost::property_tree::ptree &_tree,
-        std::map<event_t, std::shared_ptr<debounce_filter_t> > &_debounces) {
+        std::map<event_t, std::shared_ptr<debounce_filter_impl_t> > &_debounces) {
 
     for (auto i = _tree.begin(); i != _tree.end(); ++i) {
         load_event_debounce(i->second, _debounces);
@@ -3830,10 +3818,10 @@ configuration_impl::load_events_debounce(
 void
 configuration_impl::load_event_debounce(
         const boost::property_tree::ptree &_tree,
-        std::map<event_t, std::shared_ptr<debounce_filter_t> > &_debounces) {
+        std::map<event_t, std::shared_ptr<debounce_filter_impl_t> > &_debounces) {
 
     event_t its_event(0);
-    auto its_debounce = std::make_shared<debounce_filter_t>();
+    auto its_debounce = std::make_shared<debounce_filter_impl_t>();
 
     for (auto i = _tree.begin(); i != _tree.end(); ++i) {
         std::string its_key(i->first);
@@ -4215,12 +4203,13 @@ void configuration_impl::load_someip_tp_for_service(
                             = std::make_pair(its_max_segment_length, its_separation_time);
                     } else {
                         VSOMEIP_WARNING << "SOME/IP-TP: Multiple client configurations for method ["
-                                << std::hex << std::setw(4) << std::setfill('0') << _service->service_ << "."
-                                << std::hex << std::setw(4) << std::setfill('0') << _service->instance_ << "."
-                                << std::hex << std::setw(4) << std::setfill('0') << its_method << "]:"
-                                << " using ("
-                                << std::dec << its_entry->second.first << ", "
-                                << std::dec << its_entry->second.second << ")";
+                                << std::hex << std::setfill('0')
+                                << std::setw(4) << _service->service_ << "."
+                                << std::setw(4) << _service->instance_ << "."
+                                << std::setw(4) << its_method << "]:"
+                                << " using (" << std::dec
+                                << its_entry->second.first << ", "
+                                << its_entry->second.second << ")";
                     }
                 } else {
                     const auto its_entry = _service->tp_service_config_.find(its_method);
@@ -4229,11 +4218,12 @@ void configuration_impl::load_someip_tp_for_service(
                             = std::make_pair(its_max_segment_length, its_separation_time);
                     } else {
                         VSOMEIP_WARNING << "SOME/IP-TP: Multiple service configurations for method ["
-                                << std::hex << std::setw(4) << std::setfill('0') << _service->service_ << "."
-                                << std::hex << std::setw(4) << std::setfill('0') << _service->instance_ << "."
-                                << std::hex << std::setw(4) << std::setfill('0') << its_method << "]:"
-                                << " using ("
-                                << std::dec << its_entry->second.first << ", "
+                                << std::hex << std::setfill('0')
+                                << std::setw(4) << _service->service_ << "."
+                                << std::setw(4) << _service->instance_ << "."
+                                << std::setw(4) << its_method << "]:"
+                                << " using (" << std::dec
+                                << its_entry->second.first << ", "
                                 << std::dec << its_entry->second.second << ")";
                     }
                 }
@@ -4318,7 +4308,7 @@ void configuration_impl::load_secure_service(const boost::property_tree::ptree &
     }
 }
 
-std::shared_ptr<debounce_filter_t>
+std::shared_ptr<debounce_filter_impl_t>
 configuration_impl::get_debounce(const std::string &_name,
         service_t _service, instance_t _instance, event_t _event) const {
 
@@ -4331,7 +4321,7 @@ configuration_impl::get_debounce(const std::string &_name,
             if (found_instance != found_service->second.end()) {
                 auto found_event = found_instance->second.find(_event);
                 if (found_event != found_instance->second.end()) {
-                    return (found_event->second);
+                    return found_event->second;
                 }
             }
         }
@@ -4345,11 +4335,11 @@ configuration_impl::get_debounce(const std::string &_name,
         if (found_instance != found_service->second.end()) {
             auto found_event = found_instance->second.find(_event);
             if (found_event != found_instance->second.end()) {
-                return (found_event->second);
+                return found_event->second;
             }
         }
     }
-    return (nullptr);
+    return nullptr;
 }
 
 void
@@ -4441,7 +4431,7 @@ bool configuration_impl::is_protected_port(
         }
     }
 
-    return (is_required);
+    return is_required;
 }
 
 bool configuration_impl::is_secure_port(
@@ -4463,7 +4453,7 @@ bool configuration_impl::is_secure_port(
         }
     }
 
-    return (is_secure);
+    return is_secure;
 }
 
 void configuration_impl::set_sd_acceptance_rule(
@@ -4626,12 +4616,12 @@ bool configuration_impl::is_secure_service(service_t _service, instance_t _insta
     const auto its_service = secure_services_.find(_service);
     if (its_service != secure_services_.end())
         return (its_service->second.find(_instance) != its_service->second.end());
-    return (false);
+    return false;
 }
 
 int configuration_impl::get_udp_receive_buffer_size() const {
 
-	return (udp_receive_buffer_size_);
+	return udp_receive_buffer_size_;
 }
 
 bool configuration_impl::is_tp_client(
@@ -4748,7 +4738,7 @@ configuration_impl::get_partition_id(
         }
     }
 
-    return (its_id);
+    return its_id;
 }
 
 reliability_type_e
@@ -4776,19 +4766,19 @@ configuration_impl::get_reliability_type(
 bool
 configuration_impl::is_security_enabled() const {
 
-    return (is_security_enabled_);
+    return is_security_enabled_;
 }
 
 bool
 configuration_impl::is_security_audit() const {
 
-    return (is_security_audit_);
+    return is_security_audit_;
 }
 
 bool
 configuration_impl::is_remote_access_allowed() const {
 
-    return (is_remote_access_allowed_);
+    return is_remote_access_allowed_;
 }
 
 }  // namespace cfg

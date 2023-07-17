@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <cstdio>
 #include <time.h>
+#include <inttypes.h>
 #endif
 
 #include <boost/asio/steady_timer.hpp>
@@ -103,7 +104,7 @@ client_t routing_manager_impl::get_client() const {
 
 const vsomeip_sec_client_t *routing_manager_impl::get_sec_client() const {
 
-    return (routing_manager_base::get_sec_client());
+    return routing_manager_base::get_sec_client();
 }
 
 std::string routing_manager_impl::get_client_host() const {
@@ -124,7 +125,7 @@ std::string routing_manager_impl::get_env_unlocked(client_t _client) const {
 
     auto find_client = known_clients_.find(_client);
     if (find_client != known_clients_.end()) {
-        return (find_client->second);
+        return find_client->second;
     }
     return "";
 }
@@ -404,10 +405,11 @@ bool routing_manager_impl::offer_service(client_t _client,
         bool _must_queue) {
 
     VSOMEIP_INFO << "OFFER("
-        << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-        << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-        << std::hex << std::setw(4) << std::setfill('0') << _instance
-        << ":" << std::dec << int(_major) << "." << std::dec << _minor << "]"
+        << std::hex << std::setfill('0')
+        << std::setw(4) << _client << "): ["
+        << std::setw(4) << _service << "."
+        << std::setw(4) << _instance
+        << ":" << std::dec << int(_major) << "." << _minor << "]"
         << " (" << std::boolalpha << _must_queue << ")";
 
     // only queue commands if method was NOT called via erase_offer_command()
@@ -497,9 +499,10 @@ void routing_manager_impl::stop_offer_service(client_t _client,
         bool _must_queue) {
 
     VSOMEIP_INFO << "STOP OFFER("
-        << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-        << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-        << std::hex << std::setw(4) << std::setfill('0') << _instance
+        << std::hex << std::setfill('0')
+        << std::setw(4) << _client << "): ["
+        << std::setw(4) << _service << "."
+        << std::setw(4) << _instance
         << ":" << std::dec << int(_major) << "." << _minor << "]"
         << " (" << std::boolalpha << _must_queue << ")";
 
@@ -535,9 +538,10 @@ void routing_manager_impl::stop_offer_service(client_t _client,
         on_availability(_service, _instance, availability_state_e::AS_UNAVAILABLE, _major, _minor);
     } else {
         VSOMEIP_WARNING << __func__ << " received STOP_OFFER("
-                << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _client << "): ["
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance
                 << ":" << std::dec << int(_major) << "." << _minor << "] "
                 << "for remote service --> ignore";
         erase_offer_command(_service, _instance);
@@ -548,10 +552,11 @@ void routing_manager_impl::request_service(client_t _client, service_t _service,
         instance_t _instance, major_version_t _major, minor_version_t _minor) {
 
     VSOMEIP_INFO << "REQUEST("
-        << std::hex << std::setw(4) << std::setfill('0') << _client << "): ["
-        << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-        << std::hex << std::setw(4) << std::setfill('0') << _instance << ":"
-        << std::dec << int(_major) << "." << std::dec << _minor << "]";
+        << std::hex << std::setfill('0')
+        << std::setw(4) << _client << "): ["
+        << std::setw(4) << _service << "."
+        << std::setw(4) << _instance << ":"
+        << std::dec << int(_major) << "." << _minor << "]";
 
     routing_manager_base::request_service(_client,
             _service, _instance, _major, _minor);
@@ -609,9 +614,10 @@ void routing_manager_impl::release_service(client_t _client, service_t _service,
         instance_t _instance) {
 
     VSOMEIP_INFO << "RELEASE("
-        << std::hex << std::setw(4) << std::setfill('0') << _client << "): ["
-        << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-        << std::hex << std::setw(4) << std::setfill('0') << _instance << "]";
+        << std::hex << std::setfill('0')
+        << std::setw(4) << _client << "): ["
+        << std::setw(4) << _service << "."
+        << std::setw(4) << _instance << "]";
 
     if (host_->get_client() == _client) {
         std::lock_guard<std::mutex> its_lock(pending_subscription_mutex_);
@@ -644,14 +650,15 @@ void routing_manager_impl::subscribe(
         client_t _client, const vsomeip_sec_client_t *_sec_client,
         service_t _service, instance_t _instance,
         eventgroup_t _eventgroup, major_version_t _major,
-        event_t _event, const std::shared_ptr<debounce_filter_t> &_filter) {
+        event_t _event, const std::shared_ptr<debounce_filter_impl_t> &_filter) {
 
     VSOMEIP_INFO << "SUBSCRIBE("
-        << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-        << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-        << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-        << std::hex << std::setw(4) << std::setfill('0') << _eventgroup << ":"
-        << std::hex << std::setw(4) << std::setfill('0') << _event << ":"
+        << std::hex << std::setfill('0')
+        << std::setw(4) << _client << "): ["
+        << std::setw(4) << _service << "."
+        << std::setw(4) << _instance << "."
+        << std::setw(4) << _eventgroup << ":"
+        << std::setw(4) << _event << ":"
         << std::dec << (uint16_t)_major << "]";
     const client_t its_local_client = find_local_client(_service, _instance);
     if (get_client() == its_local_client) {
@@ -747,11 +754,12 @@ void routing_manager_impl::unsubscribe(
         event_t _event) {
 
     VSOMEIP_INFO << "UNSUBSCRIBE("
-        << std::hex << std::setw(4) << std::setfill('0') << _client << "): ["
-        << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-        << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-        << std::hex << std::setw(4) << std::setfill('0') << _eventgroup << "."
-        << std::hex << std::setw(4) << std::setfill('0') << _event << "]";
+        << std::hex << std::setfill('0')
+        << std::setw(4) << _client << "): ["
+        << std::setw(4) << _service << "."
+        << std::setw(4) << _instance << "."
+        << std::setw(4) << _eventgroup << "."
+        << std::setw(4) << _event << "]";
 
     bool last_subscriber_removed(true);
 
@@ -926,11 +934,12 @@ bool routing_manager_impl::send(client_t _client, const byte_t *_data,
                                 _data[VSOMEIP_SESSION_POS_MIN],
                                 _data[VSOMEIP_SESSION_POS_MAX]);
                         VSOMEIP_ERROR<< "Routing info for remote service could not be found! ("
-                                << std::hex << std::setw(4) << std::setfill('0') << its_client << "): ["
-                                << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                                << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                                << std::hex << std::setw(4) << std::setfill('0') << its_method << "] "
-                                << std::hex << std::setw(4) << std::setfill('0') << its_session;
+                                << std::hex << std::setfill('0')
+                                << std::setw(4) << its_client << "): ["
+                                << std::setw(4) << its_service << "."
+                                << std::setw(4) << _instance << "."
+                                << std::setw(4) << its_method << "] "
+                                << std::setw(4) << its_session;
                     }
                 } else {
                     std::shared_ptr<serviceinfo> its_info(find_service(its_service, _instance));
@@ -1017,11 +1026,12 @@ bool routing_manager_impl::send(client_t _client, const byte_t *_data,
                                         _data[VSOMEIP_SESSION_POS_MAX]);
                                 VSOMEIP_ERROR
                                     << "routing_manager_impl::send: Received response/error for unknown client ("
-                                    << std::hex << std::setw(4) << std::setfill('0') << its_client << "): ["
-                                    << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                                    << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                                    << std::hex << std::setw(4) << std::setfill('0') << its_method << "] "
-                                    << std::hex << std::setw(4) << std::setfill('0') << its_session;
+                                    << std::hex << std::setfill('0')
+                                    << std::setw(4) << its_client << "): ["
+                                    << std::setw(4) << its_service << "."
+                                    << std::setw(4) << _instance << "."
+                                    << std::setw(4) << its_method << "] "
+                                    << std::setw(4) << its_session;
                                 return false;
                             }
                             its_target = is_service_discovery ?
@@ -1039,11 +1049,12 @@ bool routing_manager_impl::send(client_t _client, const byte_t *_data,
                                         _data[VSOMEIP_SESSION_POS_MIN],
                                         _data[VSOMEIP_SESSION_POS_MAX]);
                                 VSOMEIP_ERROR << "Routing error. Endpoint for service ("
-                                        << std::hex << std::setw(4) << std::setfill('0') << its_client << "): ["
-                                        << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                                        << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                                        << std::hex << std::setw(4) << std::setfill('0') << its_method << "] "
-                                        << std::hex << std::setw(4) << std::setfill('0') << its_session
+                                        << std::hex << std::setfill('0')
+                                        << std::setw(4) << its_client << "): ["
+                                        << std::setw(4) << its_service << "."
+                                        << std::setw(4) << _instance << "."
+                                        << std::setw(4) << its_method << "] "
+                                        << std::setw(4) << its_session
                                         << " could not be found!";
                             }
                         }
@@ -1053,11 +1064,12 @@ bool routing_manager_impl::send(client_t _client, const byte_t *_data,
                                     _data[VSOMEIP_SESSION_POS_MIN],
                                     _data[VSOMEIP_SESSION_POS_MAX]);
                             VSOMEIP_ERROR << "Routing error. Not hosting service ("
-                                    << std::hex << std::setw(4) << std::setfill('0') << its_client << "): ["
-                                    << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                                    << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                                    << std::hex << std::setw(4) << std::setfill('0') << its_method << "] "
-                                    << std::hex << std::setw(4) << std::setfill('0') << its_session;
+                                    << std::hex << std::setfill('0')
+                                    << std::setw(4) << its_client << "): ["
+                                    << std::setw(4) << its_service << "."
+                                    << std::setw(4) << _instance << "."
+                                    << std::setw(4) << its_method << "] "
+                                    << std::setw(4) << its_session;
                         }
                     }
                 }
@@ -1065,7 +1077,7 @@ bool routing_manager_impl::send(client_t _client, const byte_t *_data,
         }
     }
 
-    return (is_sent);
+    return is_sent;
 }
 
 bool routing_manager_impl::send_to(
@@ -1108,7 +1120,7 @@ bool routing_manager_impl::send_to(
     } else {
         VSOMEIP_ERROR<< "routing_manager_impl::send_to: serialization failed.";
     }
-    return (is_sent);
+    return is_sent;
 }
 
 bool routing_manager_impl::send_to(
@@ -1184,10 +1196,11 @@ void routing_manager_impl::register_event(client_t _client,
                 _is_cache_placeholder);
     }
     VSOMEIP_INFO << "REGISTER EVENT("
-        << std::hex << std::setw(4) << std::setfill('0') << _client << "): ["
-        << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-        << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-        << std::hex << std::setw(4) << std::setfill('0') << _notifier
+        << std::hex << std::setfill('0')
+        << std::setw(4) << _client << "): ["
+        << std::setw(4) << _service << "."
+        << std::setw(4) << _instance << "."
+        << std::setw(4) << _notifier
         << ":is_provider=" << std::boolalpha << _is_provided << "]";
 }
 
@@ -1258,7 +1271,7 @@ void routing_manager_impl::notify_one(service_t _service, instance_t _instance,
 
             if (its_targets.size() > 0) {
                 for (const auto &its_target : its_targets) {
-                    its_event->set_payload(_payload, _client, its_target);
+                    its_event->set_payload(_payload, _client, its_target, _force);
                 }
             }
         } else {
@@ -1315,8 +1328,9 @@ bool routing_manager_impl::offer_service_remotely(service_t _service,
 
     if(!is_available(_service, _instance, ANY_MAJOR)) {
         VSOMEIP_ERROR << __func__ << ": Service ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance
                 << "] is not offered locally! Won't offer it remotely.";
         ret = false;
     } else {
@@ -1329,18 +1343,19 @@ bool routing_manager_impl::offer_service_remotely(service_t _service,
             const client_t its_offering_client = find_local_client(_service, _instance);
             if (its_offering_client == VSOMEIP_ROUTING_CLIENT) {
                 VSOMEIP_ERROR << __func__ << " didn't find offering client for service ["
-                        << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << _instance
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << _service << "."
+                        << std::setw(4) << _instance
                         << "]";
                 ret = false;
             } else {
                 if (stub_ && !stub_->send_provided_event_resend_request(its_offering_client,
                         pending_remote_offer_add(_service, _instance))) {
                     VSOMEIP_ERROR << __func__ << ": Couldn't send event resend"
-                        << "request to client 0x" << std::hex << std::setw(4)
-                        << std::setfill('0') << its_offering_client << " providing service ["
-                        << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << _instance
+                        << std::hex << std::setfill('0')
+                        << "request to client 0x" << std::setw(4) << its_offering_client
+                        << " providing service [" << std::setw(4) << _service << "."
+                        << std::setw(4) << _instance
                         << "]";
 
                     ret = false;
@@ -1362,8 +1377,9 @@ bool routing_manager_impl::stop_offer_service_remotely(service_t _service,
     if (!configuration_->remote_offer_info_remove(_service, _instance, _port,
             _reliable, _magic_cookies_enabled, &service_still_offered_remote)) {
         VSOMEIP_ERROR << __func__ << " couldn't remove remote offer info for service ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance
                 << "] from configuration";
         ret = false;
     }
@@ -1475,11 +1491,12 @@ void routing_manager_impl::on_message(const byte_t *_data, length_t _size,
                         _data[VSOMEIP_SESSION_POS_MAX]);
                 boost::system::error_code ec;
                 VSOMEIP_ERROR << "Received message on invalid port: ["
-                        << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_instance << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_method << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_client << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_session << "] from: "
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << its_service << "."
+                        << std::setw(4) << its_instance << "."
+                        << std::setw(4) << its_method << "."
+                        << std::setw(4) << its_client << "."
+                        << std::setw(4) << its_session << "] from: "
                         << _remote_address.to_string(ec) << ":" << std::dec << _remote_port;
             }
             //Ignore messages with invalid message type
@@ -1661,7 +1678,7 @@ void routing_manager_impl::on_notification(client_t _client,
                     its_event->set_payload(its_payload, false);
                 }
             } else {
-                 its_event->set_payload(its_payload, false, true);
+                 its_event->set_payload(its_payload, VSOMEIP_ROUTING_CLIENT, true);
             }
         }
     }
@@ -1696,19 +1713,21 @@ void routing_manager_impl::on_stop_offer_service(client_t _client, service_t _se
                     VSOMEIP_WARNING
                             << "routing_manager_impl::on_stop_offer_service: "
                             << "trying to delete service not matching exactly "
-                            << "the one offered previously: " << "[" << std::hex
-                            << std::setw(4) << std::setfill('0') << _service
-                            << "." << _instance << "." << std::dec
-                            << static_cast<std::uint32_t>(_major)
+                            << "the one offered previously: " << "["
+                            << std::hex << std::setfill('0')
+                            << std::setw(4) << _service << "."
+                            << _instance << "." << std::dec << static_cast<std::uint32_t>(_major)
                             << "." << _minor << "] by application: "
-                            << std::hex << std::setw(4) << std::setfill('0')
-                            << _client << ". Stored: [" << std::hex
-                            << std::setw(4) << std::setfill('0') << _service
-                            << "." << _instance << "." << std::dec
+                            << std::hex
+                            << std::setw(4) << _client << ". Stored: ["
+                            << std::setw(4) << _service
+                            << "." << _instance << "."
+                            << std::dec
                             << static_cast<std::uint32_t>(std::get<0>(found_instance->second)) << "."
                             << std::get<1>(found_instance->second)
-                            << "] by application: " << std::hex << std::setw(4)
-                            << std::setfill('0') << std::get<2>(found_instance->second);
+                            << "] by application: "
+                            << std::hex
+                            << std::setw(4) << std::get<2>(found_instance->second);
                 }
                 if (std::get<2>(found_instance->second) == _client) {
                     found_service->second.erase(_instance);
@@ -1919,7 +1938,7 @@ bool routing_manager_impl::deliver_message(const byte_t *_data, length_t _size,
                             << its_message->get_client() << " to service/instance/method "
                             << its_message->get_service() << "/" << its_message->get_instance()
                             << "/" << its_message->get_method() << " which doesn't match the bound client 0x"
-                            << std::setw(4) << std::setfill('0') << _bound_client
+                            << std::setw(4) << _bound_client
                             << " ~> Skip message!";
                     return false;
                 }
@@ -2033,9 +2052,10 @@ bool routing_manager_impl::deliver_notification(
                 }
                 if (!cache_event) {
                     VSOMEIP_WARNING << __func__ << ": dropping ["
-                            << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                            << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                            << std::hex << std::setw(4) << std::setfill('0') << its_event_id
+                            << std::hex << std::setfill('0')
+                            << std::setw(4) << _service << "."
+                            << std::setw(4) << _instance << "."
+                            << std::setw(4) << its_event_id
                             << "]. No subscription to corresponding eventgroup.";
                     return true; // as there is nothing to do
                 }
@@ -2090,9 +2110,10 @@ bool routing_manager_impl::deliver_notification(
 
     } else {
         VSOMEIP_WARNING << __func__ << ": Event ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_event_id << "]"
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance << "."
+                << std::setw(4) << its_event_id << "]"
                 << " is not registered. The message is dropped.";
     }
 
@@ -2218,8 +2239,9 @@ void routing_manager_impl::init_service_info(
     if (!its_info) {
         VSOMEIP_ERROR << "routing_manager_impl::init_service_info: couldn't "
                 "find serviceinfo for service: ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance << "]"
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance << "]"
                 << " is_local_service=" << _is_local_service;
         return;
     }
@@ -2329,15 +2351,18 @@ void routing_manager_impl::add_routing_info(
             << "rejecting routing info. Remote: "
             << ((_reliable_port != ILLEGAL_PORT) ? _reliable_address.to_string()
                     : _unreliable_address.to_string()) << " is trying to offer ["
-            << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-            << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
-            << std::dec << static_cast<std::uint32_t>(_major) << "."
-            << std::dec << _minor
+            << std::hex << std::setfill('0')
+            << std::setw(4) << _service << "."
+            << std::setw(4) << _instance << "."
+            << std::dec
+            << static_cast<std::uint32_t>(_major) << "." << _minor
             << "] on port " << ((_reliable_port != ILLEGAL_PORT) ? _reliable_port
                     : _unreliable_port) << " offered previously on this node: ["
-            << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-            << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
-            << std::dec << static_cast<std::uint32_t>(its_info->get_major())
+            << std::hex
+            << std::setw(4) << _service << "."
+            << std::setw(4) << _instance << "."
+            << std::dec
+            << static_cast<std::uint32_t>(its_info->get_major())
             << "." << its_info->get_minor() << "]";
         return;
     } else {
@@ -2630,8 +2655,8 @@ void routing_manager_impl::update_routing_info(std::chrono::milliseconds _elapse
             del_routing_info(s.first, i, true, true);
             VSOMEIP_INFO << "update_routing_info: elapsed=" << _elapsed.count()
                     << " : delete service/instance "
-                    << std::hex << std::setw(4) << std::setfill('0') << s.first
-                    << "." << std::hex << std::setw(4) << std::setfill('0') << i;
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << s.first << "." << std::setw(4) << i;
         }
     }
 }
@@ -2685,8 +2710,8 @@ void routing_manager_impl::expire_services(
         for (auto &i : s.second) {
             VSOMEIP_INFO << "expire_services for address: " << _address
                     << " : delete service/instance "
-                    << std::hex << std::setw(4) << std::setfill('0') << s.first
-                    << "." << std::hex << std::setw(4) << std::setfill('0') << i
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << s.first << "." << std::setw(4) << i
                     << " port [" << std::dec << _range.first << "," << _range.second
                     << "] reliability=" << std::boolalpha << _reliable;
             del_routing_info(s.first, i, true, true);
@@ -2733,7 +2758,7 @@ routing_manager_impl::expire_subscriptions(
                     // Note: get_remote_subscription delivers a copied
                     // set of subscriptions. Thus, its is possible to
                     // to remove them within the loop.
-                    auto its_ep_definition = (_reliable) ?
+                    auto its_ep_definition = _reliable ?
                                     its_subscription->get_reliable() :
                                     its_subscription->get_unreliable();
 
@@ -2872,9 +2897,10 @@ void routing_manager_impl::on_remote_subscribe(
         } else { // identical subscription is not yet processed
             std::stringstream its_warning;
             its_warning << __func__ << " a remote subscription is already pending ["
-                << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_instance << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_eventgroup << "]"
+                << std::hex << std::setfill('0')
+                << std::setw(4) << its_service << "."
+                << std::setw(4) << its_instance << "."
+                << std::setw(4) << its_eventgroup << "]"
                 << " from ";
             if (its_reliable && its_unreliable)
                 its_warning << "[";
@@ -2999,10 +3025,11 @@ void routing_manager_impl::on_subscribe_ack(client_t _client,
                 discovery_->update_remote_subscription(its_subscription);
 
                 VSOMEIP_INFO << "REMOTE SUBSCRIBE("
-                    << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-                    << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _eventgroup << "]"
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << _client << "): ["
+                    << std::setw(4) << _service << "."
+                    << std::setw(4) << _instance << "."
+                    << std::setw(4) << _eventgroup << "]"
                     << " from " << its_subscription->get_subscriber()->get_address()
                     << ":" << std::dec << its_subscription->get_subscriber()->get_port()
                     << (its_subscription->get_subscriber()->is_reliable() ? " reliable" : " unreliable")
@@ -3084,10 +3111,11 @@ void routing_manager_impl::on_subscribe_nack(client_t _client,
             if (discovery_) {
                 discovery_->update_remote_subscription(its_subscription);
                 VSOMEIP_INFO << "REMOTE SUBSCRIBE("
-                    << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-                    << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _eventgroup << "]"
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << _client << "): ["
+                    << std::setw(4) << _service << "."
+                    << std::setw(4) << _instance << "."
+                    << std::setw(4) << _eventgroup << "]"
                     << " from " << its_subscription->get_subscriber()->get_address()
                     << ":" << std::dec << its_subscription->get_subscriber()->get_port()
                     << (its_subscription->get_subscriber()->is_reliable() ? " reliable" : " unreliable")
@@ -3263,9 +3291,10 @@ routing_manager_impl::expire_subscriptions(bool _force) {
                     if(!s) {
                         VSOMEIP_ERROR << __func__
                             << ": Remote subscription is NULL for eventgroup ["
-                            << std::hex << std::setw(4) << std::setfill('0') << its_service.first << "."
-                            << std::hex << std::setw(4) << std::setfill('0') << its_instance.first << "."
-                            << std::hex << std::setw(4) << std::setfill('0') << its_eventgroup.first << "]";
+                            << std::hex << std::setfill('0')
+                            << std::setw(4) << its_service.first << "."
+                            << std::setw(4) << its_instance.first << "."
+                            << std::setw(4) << its_eventgroup.first << "]";
                         continue;
                     }
                     for (auto its_client : s->get_clients()) {
@@ -3328,9 +3357,10 @@ routing_manager_impl::expire_subscriptions(bool _force) {
                 } else {
                     VSOMEIP_ERROR << __func__
                         << ": Unknown expired subscription " << std::dec << its_id << " for eventgroup ["
-                        << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_instance << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_eventgroup << "]";
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << its_service << "."
+                        << std::setw(4) << its_instance << "."
+                        << std::setw(4) << its_eventgroup << "]";
                 }
                 send_expired_subscription(its_offering_client,
                         its_service, its_instance, its_eventgroup,
@@ -3340,18 +3370,20 @@ routing_manager_impl::expire_subscriptions(bool _force) {
 
             if (s.first->get_unreliable()) {
                 VSOMEIP_INFO << (_force ? "Removed" : "Expired") << " subscription ["
-                        << std::hex << std::setfill('0') << std::setw(4) << its_service << "."
-                        << std::hex << std::setfill('0') << std::setw(4) << its_instance << "."
-                        << std::hex << std::setfill('0') << std::setw(4) << its_eventgroup << "] unreliable from "
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << its_service << "."
+                        << std::setw(4) << its_instance << "."
+                        << std::setw(4) << its_eventgroup << "] unreliable from "
                         << s.first->get_unreliable()->get_address() << ":"
                         << std::dec << s.first->get_unreliable()->get_port();
             }
 
             if (s.first->get_reliable()) {
                 VSOMEIP_INFO << (_force ? "Removed" : "Expired") << " subscription ["
-                        << std::hex << std::setfill('0') << std::setw(4) << its_service << "."
-                        << std::hex << std::setfill('0') << std::setw(4) << its_instance << "."
-                        << std::hex << std::setfill('0') << std::setw(4) << its_eventgroup << "] reliable from "
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << its_service << "."
+                        << std::setw(4) << its_instance << "."
+                        << std::setw(4) << its_eventgroup << "] reliable from "
                         << s.first->get_reliable()->get_address() << ":"
                         << std::dec << s.first->get_reliable()->get_port();
             }
@@ -3363,10 +3395,6 @@ routing_manager_impl::expire_subscriptions(bool _force) {
 
 void routing_manager_impl::log_version_timer_cbk(boost::system::error_code const & _error) {
     if (!_error) {
-
-#ifndef VSOMEIP_VERSION
-#define VSOMEIP_VERSION "unknown version"
-#endif
         static int its_counter(0);
         static uint32_t its_interval = configuration_->get_log_version_interval();
 
@@ -3421,10 +3449,11 @@ bool routing_manager_impl::handle_local_offer_service(client_t _client, service_
                     && its_stored_minor == _minor
                     && its_stored_client == _client) {
                     VSOMEIP_WARNING << "routing_manager_impl::handle_local_offer_service: "
-                        << "Application: " << std::hex << std::setfill('0')
+                        << "Application: "
+                        << std::hex << std::setfill('0')
                         << std::setw(4) << _client << " is offering: ["
-                        << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-                        << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
+                        << std::setw(4) << _service << "."
+                        << std::setw(4) << _instance << "."
                         << std::dec << static_cast<std::uint32_t>(_major) << "."
                         << _minor << "] offered previously by itself.";
                     return false;
@@ -3444,18 +3473,19 @@ bool routing_manager_impl::handle_local_offer_service(client_t _client, service_
                                 } else {
                                     VSOMEIP_ERROR << "routing_manager_impl::handle_local_offer_service: "
                                         << "rejecting service registration. Application: "
-                                        << std::hex << std::setfill('0') << std::setw(4)
-                                        << _client << " is trying to offer ["
-                                        << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-                                        << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
-                                        << std::dec << static_cast<std::uint32_t>(_major) << "."
-                                        << std::dec << _minor
+                                        << std::hex << std::setfill('0')
+                                        << std::setw(4) << _client << " is trying to offer ["
+                                        << std::setw(4) << _service << "."
+                                        << std::setw(4) << _instance << "."
+                                        << std::dec
+                                        << static_cast<std::uint32_t>(_major) << "." << _minor
                                         << "] current pending offer by application: " << std::hex
-                                        << std::setfill('0') << std::setw(4)
-                                        << its_stored_client << ": ["
-                                        << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-                                        << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
-                                        << std::dec << static_cast<std::uint32_t>(its_stored_major)
+                                        << std::setw(4) << its_stored_client << ": ["
+                                        << std::hex
+                                        << std::setw(4) << _service << "."
+                                        << std::setw(4) << _instance << "."
+                                        << std::dec
+                                        << static_cast<std::uint32_t>(its_stored_major)
                                         << "." << its_stored_minor << "]";
                                     return false;
                                 }
@@ -3472,30 +3502,32 @@ bool routing_manager_impl::handle_local_offer_service(client_t _client, service_
                                         std::make_tuple(_major, _minor, _client,
                                                         its_stored_client);
                                 VSOMEIP_WARNING << "OFFER("
-                                    << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-                                    << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                                    << std::hex << std::setw(4) << std::setfill('0') << _instance
-                                    << ":" << std::dec << int(_major) << "." << std::dec << _minor
+                                    << std::hex << std::setfill('0')
+                                    << std::setw(4) << _client << "): ["
+                                    << std::setw(4) << _service << "."
+                                    << std::setw(4) << _instance << ":"
+                                    << std::dec << int(_major) << "." << std::dec << _minor
                                     << "] is now pending. Waiting for pong from application: "
-                                    << std::hex << std::setw(4) << std::setfill('0') << its_stored_client;
+                                    << std::hex << std::setw(4) << its_stored_client;
                                 return false;
                             }
                         } else if (its_stored_client == host_->get_client()) {
                             VSOMEIP_ERROR << "routing_manager_impl::handle_local_offer_service: "
                                 << "rejecting service registration. Application: "
-                                << std::hex << std::setfill('0') << std::setw(4)
-                                << _client << " is trying to offer ["
-                                << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-                                << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
-                                << std::dec << static_cast<std::uint32_t>(_major) << "."
-                                << std::dec << _minor
+                                << std::hex << std::setfill('0')
+                                << std::setw(4) << _client << " is trying to offer ["
+                                << std::setw(4) << _service << "."
+                                << std::setw(4) << _instance << "."
+                                << std::dec
+                                << static_cast<std::uint32_t>(_major) << "." << _minor
                                 << "] offered previously by routing manager stub itself with application: "
-                                << std::hex << std::setfill('0') << std::setw(4)
-                                << its_stored_client << ": ["
-                                << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-                                << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
-                                << std::dec << static_cast<std::uint32_t>(its_stored_major)
-                                << "." << its_stored_minor << "] which is still alive";
+                                << std::hex
+                                << std::setw(4) << its_stored_client << ": ["
+                                << std::setw(4) << _service << "."
+                                << std::setw(4) << _instance << "."
+                                << std::dec
+                                << static_cast<std::uint32_t>(its_stored_major) << "." << its_stored_minor
+                                << "] which is still alive";
                             return false;
                         }
                     } else {
@@ -3504,19 +3536,19 @@ bool routing_manager_impl::handle_local_offer_service(client_t _client, service_
                 } else {
                     VSOMEIP_ERROR << "routing_manager_impl::handle_local_offer_service: "
                         << "rejecting service registration. Application: "
-                        << std::hex << std::setfill('0') << std::setw(4)
-                        << _client << " is trying to offer ["
-                        << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-                        << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
-                        << std::dec << static_cast<std::uint32_t>(_major) << "."
-                        << std::dec << _minor
-                        << "] offered previously by application: " << std::hex
-                        << std::setfill('0') << std::setw(4)
-                        << its_stored_client << ": ["
-                        << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-                        << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
-                        << std::dec << static_cast<std::uint32_t>(its_stored_major)
-                        << "." << its_stored_minor << "]";
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << _client << " is trying to offer ["
+                        << std::setw(4) << _service << "."
+                        << std::setw(4) << _instance << "."
+                        << std::dec
+                        << static_cast<std::uint32_t>(_major) << "." << _minor
+                        << "] offered previously by application: "
+                        << std::hex
+                        << std::setw(4) << its_stored_client << ": ["
+                        << std::setw(4) << _service << "."
+                        << std::setw(4) << _instance << "."
+                        << std::dec
+                        << static_cast<std::uint32_t>(its_stored_major) << "." << its_stored_minor << "]";
                     return false;
                 }
             }
@@ -3530,12 +3562,12 @@ bool routing_manager_impl::handle_local_offer_service(client_t _client, service_
         } else {
             VSOMEIP_ERROR << "routing_manager_impl::handle_local_offer_service: "
                 << "rejecting service registration. Application: "
-                << std::hex << std::setfill('0') << std::setw(4)
-                << _client << " is trying to offer ["
-                << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-                << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
-                << std::dec << static_cast<std::uint32_t>(_major) << "."
-                << std::dec << _minor << "]"
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _client << " is trying to offer ["
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance << "."
+                << std::dec
+                << static_cast<std::uint32_t>(_major) << "." << _minor << "]"
                 << "] already offered remotely";
             return false;
         }
@@ -3557,16 +3589,16 @@ void routing_manager_impl::on_pong(client_t _client) {
                 // to offer its service, delete the other applications offer as
                 // the current offering application is still alive
                 VSOMEIP_WARNING << "OFFER("
-                    << std::hex << std::setw(4) << std::setfill('0')
-                    << std::get<2>(instance_iter->second) <<"): ["
-                    << std::hex << std::setw(4) << std::setfill('0')
-                    << service_iter->first << "."
-                    << std::hex << std::setw(4) << std::setfill('0')
-                    << instance_iter->first << ":" << std::dec
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << std::get<2>(instance_iter->second) << "): ["
+                    << std::setw(4) << service_iter->first << "."
+                    << std::setw(4) << instance_iter->first << ":"
+                    << std::dec
                     << std::uint32_t(std::get<0>(instance_iter->second))
-                    << "." << std::dec << std::get<1>(instance_iter->second)
+                    << "." << std::get<1>(instance_iter->second)
                     << "] was rejected as application: "
-                    << std::hex << std::setw(4) << std::setfill('0') << _client
+                    << std::hex
+                    << std::setw(4) << _client
                     << " is still alive";
                 instance_iter = service_iter->second.erase(instance_iter);
             } else {
@@ -3609,17 +3641,16 @@ void routing_manager_impl::handle_client_error(client_t _client) {
                     instance_iter != service_iter->second.end(); ) {
                 if (std::get<3>(instance_iter->second) == _client) {
                     VSOMEIP_WARNING << "OFFER("
-                        << std::hex << std::setw(4) << std::setfill('0')
-                        << std::get<2>(instance_iter->second) <<"): ["
-                        << std::hex << std::setw(4) << std::setfill('0')
-                        << service_iter->first << "."
-                        << std::hex << std::setw(4) << std::setfill('0')
-                        << instance_iter->first << ":" << std::dec
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << std::get<2>(instance_iter->second) << "): ["
+                        << std::setw(4) << service_iter->first << "."
+                        << std::setw(4) << instance_iter->first << ":"
+                        << std::dec
                         << std::uint32_t(std::get<0>(instance_iter->second))
-                        << "." << std::dec << std::get<1>(instance_iter->second)
+                        << "." << std::get<1>(instance_iter->second)
                         << "] is not pending anymore as application: "
-                        << std::hex << std::setw(4) << std::setfill('0')
-                        << std::get<3>(instance_iter->second)
+                        << std::hex
+                        << std::setw(4) << std::get<3>(instance_iter->second)
                         << " is dead. Offering again!";
                     its_offers.push_front(std::make_tuple(
                                     std::get<2>(instance_iter->second),
@@ -3652,7 +3683,7 @@ std::shared_ptr<endpoint_manager_impl> routing_manager_impl::get_endpoint_manage
 
 void routing_manager_impl::send_subscribe(client_t _client, service_t _service,
         instance_t _instance, eventgroup_t _eventgroup, major_version_t _major,
-        event_t _event, const std::shared_ptr<debounce_filter_t> &_filter) {
+        event_t _event, const std::shared_ptr<debounce_filter_impl_t> &_filter) {
     auto endpoint = ep_mgr_->find_local(_service, _instance);
     if (endpoint && stub_) {
         stub_->send_subscribe(endpoint, _client,
@@ -3697,9 +3728,10 @@ void routing_manager_impl::set_routing_state(routing_state_e _routing_state) {
                         if (its_instance.second->get_endpoint(true) || its_instance.second->get_endpoint(false)) {
                             const client_t its_client(find_local_client(its_service.first, its_instance.first));
                             VSOMEIP_WARNING << "service "
-                                << std::hex << std::setw(4) << std::setfill('0') << its_service.first << "."
-                                << std::hex << std::setw(4) << std::setfill('0') << its_instance.first << " still offered by "
-                                << std::hex << std::setw(4) << std::setfill('0') << its_client;
+                                << std::hex << std::setfill('0')
+                                << std::setw(4) << its_service.first << "."
+                                << std::setw(4) << its_instance.first << " still offered by "
+                                << std::setw(4) << its_client;
                         }
                         // collect stop offers to be sent out
                         if (discovery_->stop_offer_service(its_instance.second, false)) {
@@ -4015,7 +4047,7 @@ routing_manager_impl::get_requested_services(client_t _client) {
             }
         }
     }
-    return (its_requests);
+    return its_requests;
 }
 
 std::set<client_t>
@@ -4023,7 +4055,7 @@ routing_manager_impl::get_requesters(service_t _service, instance_t _instance,
         major_version_t _major, minor_version_t _minor) {
 
     std::lock_guard<std::mutex> ist_lock(requested_services_mutex_);
-    return (get_requesters_unlocked(_service, _instance, _major, _minor));
+    return get_requesters_unlocked(_service, _instance, _major, _minor);
 }
 
 std::set<client_t>
@@ -4056,7 +4088,7 @@ routing_manager_impl::get_requesters_unlocked(
             }
         }
     }
-    return (its_requesters);
+    return its_requesters;
 }
 
 bool
@@ -4076,14 +4108,14 @@ routing_manager_impl::has_requester_unlocked(
                                 || _minor == DEFAULT_MINOR
                                 || its_minor.first == ANY_MINOR) {
 
-                            return (true);
+                            return true;
                         }
                     }
                 }
             }
         }
     }
-    return (false);
+    return false;
 }
 
 std::set<eventgroup_t>
@@ -4184,7 +4216,7 @@ void routing_manager_impl::call_sd_endpoint_connected(
 
 bool routing_manager_impl::create_placeholder_event_and_subscribe(
         service_t _service, instance_t _instance, eventgroup_t _eventgroup,
-        event_t _event, const std::shared_ptr<debounce_filter_t> &_filter,
+        event_t _event, const std::shared_ptr<debounce_filter_impl_t> &_filter,
         client_t _client) {
 
     bool is_inserted(false);
@@ -4228,11 +4260,12 @@ bool routing_manager_impl::create_placeholder_event_and_subscribe(
         } else {
             VSOMEIP_WARNING
                 << "routing_manager_impl::create_placeholder_event_and_subscribe("
-                << std::hex << std::setw(4) << std::setfill('0') << _client << "): ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _eventgroup << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _event << "]"
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _client << "): ["
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance << "."
+                << std::setw(4) << _eventgroup << "."
+                << std::setw(4) << _event << "]"
                 << " received subscription for unknown service instance.";
         }
     }
@@ -4351,7 +4384,7 @@ void routing_manager_impl::memory_log_timer_cbk(
     std::uint64_t its_data(0);
     std::uint64_t its_dirtypages(0);
 
-    if (EOF == std::fscanf(its_file, "%lu %lu %lu %lu %lu %lu %lu", &its_size,
+    if (EOF == std::fscanf(its_file, "%" PRIu64 "%" PRIu64 "%" PRIu64 "%" PRIu64 "%" PRIu64 "%" PRIu64 "%" PRIu64, &its_size,
                     &its_rsssize, &its_sharedpages, &its_text, &its_lib,
                     &its_data, &its_dirtypages)) {
         VSOMEIP_ERROR<< "memory_log_timer_cbk: error reading:"
@@ -4439,18 +4472,20 @@ routing_manager_impl::on_unsubscribe_ack(client_t _client,
         } else {
             VSOMEIP_ERROR << __func__
                 << ": Unknown StopSubscribe " << std::dec << _id << " for eventgroup ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _eventgroup << "]";
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance << "."
+                << std::setw(4) << _eventgroup << "]";
         }
         update_remote_subscription_mutex_.unlock();
     } else {
         VSOMEIP_ERROR << __func__
                 << ": Received StopSubscribe for unknown eventgroup: ("
-                << std::hex << std::setw(4) << std::setfill('0') << _client << "): ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _eventgroup << "]";
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _client << "): ["
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance << "."
+                << std::setw(4) << _eventgroup << "]";
     }
 }
 
@@ -4615,8 +4650,9 @@ void routing_manager_impl::service_endpoint_disconnected(
         stub_->on_stop_offer_service(VSOMEIP_ROUTING_CLIENT, _service, _instance,
                 _major, _minor);
     VSOMEIP_WARNING << __func__ << ": lost connection to remote service: ["
-            << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-            << std::hex << std::setw(4) << std::setfill('0') << _instance << "]";
+            << std::hex << std::setfill('0')
+            << std::setw(4) << _service << "."
+            << std::setw(4) << _instance << "]";
 }
 
 void
@@ -4704,7 +4740,7 @@ routing_manager_impl::update_security_policy_configuration(
         return stub_->update_security_policy_configuration(_uid, _gid,
                           _policy, _payload, _handler);
 
-    return (false);
+    return false;
 }
 
 bool
@@ -4716,7 +4752,7 @@ routing_manager_impl::remove_security_policy_configuration(
         return stub_->remove_security_policy_configuration(_uid, _gid,
                           _handler);
 
-    return (false);
+    return false;
 }
 #endif // !VSOMEIP_DISABLE_SECURITY
 
@@ -4789,8 +4825,8 @@ void routing_manager_impl::statistics_log_timer_cbk(boost::system::error_code co
                             its_subscribed = static_cast<std::uint16_t>(its_event->get_subscribers().size());
                         }
                     }
-                    its_log << std::hex << std::setw(4) << std::setfill('0')
-                                    << std::get<0>(s.first) << "."
+                    its_log << std::hex << std::setfill('0')
+                                    << std::setw(4) << std::get<0>(s.first) << "."
                                     << std::get<1>(s.first) << "."
                                     << std::get<2>(s.first) << ": #="
                                     << std::dec << s.second.counter_ << " L="
@@ -4826,7 +4862,7 @@ bool
 routing_manager_impl::get_guest(client_t _client,
         boost::asio::ip::address &_address, port_t &_port) const {
 
-    return (routing_manager_base::get_guest(_client, _address, _port));
+    return routing_manager_base::get_guest(_client, _address, _port);
 }
 
 void
@@ -4885,12 +4921,10 @@ routing_manager_impl::remove_subscriptions(port_t _local_port,
 
                         VSOMEIP_INFO << __func__
                                 << ": Removing subscription to ["
-                                << std::hex << std::setw(4) << std::setfill('0')
-                                << its_info->get_service() << "."
-                                << std::hex << std::setw(4) << std::setfill('0')
-                                << its_info->get_instance() << "."
-                                << std::hex << std::setw(4) << std::setfill('0')
-                                << its_info->get_eventgroup()
+                                << std::hex << std::setfill('0')
+                                << std::setw(4) << its_info->get_service() << "."
+                                << std::setw(4) << its_info->get_instance() << "."
+                                << std::setw(4) << its_info->get_eventgroup()
                                 << "] from target "
                                 << its_definition->get_address() << ":"
                                 << std::dec << its_definition->get_port()

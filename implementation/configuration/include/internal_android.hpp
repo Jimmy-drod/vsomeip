@@ -54,8 +54,10 @@
 
 #define VSOMEIP_DEFAULT_CONNECT_TIMEOUT         100
 #define VSOMEIP_MAX_CONNECT_TIMEOUT             1600
-#define VSOMEIP_DEFAULT_CONNECTING_TIMEOUT      100
+#define VSOMEIP_DEFAULT_CONNECTING_TIMEOUT      500
 #define VSOMEIP_DEFAULT_FLUSH_TIMEOUT           1000
+#define VSOMEIP_ROUTING_ROOT_RECONNECT_RETRIES  10000
+#define VSOMEIP_ROUTING_ROOT_RECONNECT_INTERVAL 10  // miliseconds
 
 #define VSOMEIP_DEFAULT_SHUTDOWN_TIMEOUT        5000
 
@@ -104,6 +106,10 @@
 
 #define VSOMEIP_ROUTING_READY_MESSAGE           "SOME/IP routing ready."
 
+#ifndef VSOMEIP_VERSION
+#define VSOMEIP_VERSION "unknown version"
+#endif
+
 namespace vsomeip_v3 {
 
 typedef enum {
@@ -119,14 +125,14 @@ typedef enum {
     IS_SUBSCRIBING
 } subscription_state_e;
 
-const std::uint32_t MESSAGE_SIZE_UNLIMITED = (std::numeric_limits<std::uint32_t>::max)();
+const std::uint32_t MESSAGE_SIZE_UNLIMITED = std::numeric_limits<std::uint32_t>::max();
 
-const std::uint32_t QUEUE_SIZE_UNLIMITED = (std::numeric_limits<std::uint32_t>::max)();
+const std::uint32_t QUEUE_SIZE_UNLIMITED = std::numeric_limits<std::uint32_t>::max();
 
 #define VSOMEIP_DEFAULT_NPDU_DEBOUNCING_NANO         2 * 1000 * 1000
 #define VSOMEIP_DEFAULT_NPDU_MAXIMUM_RETENTION_NANO  5 * 1000 * 1000
 
-const std::uint32_t MAX_RECONNECTS_UNLIMITED = (std::numeric_limits<std::uint32_t>::max)();
+const std::uint32_t MAX_RECONNECTS_UNLIMITED = std::numeric_limits<std::uint32_t>::max();
 
 const std::uint32_t ANY_UID = 0xFFFFFFFF;
 const std::uint32_t ANY_GID = 0xFFFFFFFF;
@@ -137,14 +143,6 @@ enum class port_type_e {
     PT_UNSECURE,
     PT_UNKNOWN
 };
-
-typedef std::map<service_t,
-    std::map<instance_t,
-        std::map<event_t,
-            std::shared_ptr<debounce_filter_t>
-        >
-    >
-> debounce_configuration_t;
 
 typedef uint8_t partition_id_t;
 const partition_id_t VSOMEIP_DEFAULT_PARTITION_ID = 0;

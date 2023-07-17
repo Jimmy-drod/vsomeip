@@ -117,10 +117,11 @@ void tcp_client_endpoint_impl::restart(bool _force) {
                         (*q.first)[VSOMEIP_SESSION_POS_MAX]);
                 VSOMEIP_WARNING << "tce::restart: dropping message: "
                         << "remote:" << self->get_address_port_remote() << " ("
-                        << std::hex << std::setw(4) << std::setfill('0') << its_client <<"): ["
-                        << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_method << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_session << "]"
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << its_client << "): ["
+                        << std::setw(4) << its_service << "."
+                        << std::setw(4) << its_method << "."
+                        << std::setw(4) << its_session << "]"
                         << " size: " << std::dec << q.first->size();
             }
             self->queue_.clear();
@@ -213,6 +214,10 @@ void tcp_client_endpoint_impl::connect() {
                                 << " remote:" << get_address_port_remote();
                     }
                 }
+                {
+                    std::lock_guard<std::mutex> its_lock(connecting_timer_mutex_);
+                    connecting_timer_.cancel();
+                }
                 try {
                     // don't connect on bind error to avoid using a random port
                     strand_.post(std::bind(&client_endpoint_impl::connect_cbk,
@@ -233,7 +238,7 @@ void tcp_client_endpoint_impl::connect() {
             remote_,
             strand_.wrap(
                 std::bind(
-                    &tcp_client_endpoint_base_impl::connect_cbk,
+                    &tcp_client_endpoint_base_impl::cancel_and_connect_cbk,
                     shared_from_this(),
                     std::placeholders::_1
                 )
@@ -242,6 +247,10 @@ void tcp_client_endpoint_impl::connect() {
     } else {
         VSOMEIP_WARNING << "tcp_client_endpoint::connect: Error opening socket: "
                 << its_error.message() << " remote:" << get_address_port_remote();
+        {
+            std::lock_guard<std::mutex> its_lock(connecting_timer_mutex_);
+            connecting_timer_.cancel();
+        }
         strand_.post(std::bind(&tcp_client_endpoint_base_impl::connect_cbk,
                                 shared_from_this(), its_error));
     }
@@ -422,10 +431,11 @@ std::size_t tcp_client_endpoint_impl::write_completion_condition(
                 << ") bytes transferred: " << std::dec << _bytes_transferred
                 << " bytes to sent: " << std::dec << _bytes_to_send << " "
                 << "remote:" << get_address_port_remote() << " ("
-                << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _method << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _session << "]";
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _client << "): ["
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _method << "."
+                << std::setw(4) << _session << "]";
         return 0;
     }
 
@@ -439,10 +449,11 @@ std::size_t tcp_client_endpoint_impl::write_completion_condition(
                     << "ms bytes transferred: " << std::dec << _bytes_transferred
                     << " bytes to sent: " << std::dec << _bytes_to_send << " "
                     << "remote:" << get_address_port_remote() << " ("
-                    << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-                    << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _method << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _session << "]";
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << _client << "): ["
+                    << std::setw(4) << _service << "."
+                    << std::setw(4) << _method << "."
+                    << std::setw(4) << _session << "]";
         } else {
             VSOMEIP_WARNING << "tce::write_completion_condition: "
                     << _error.message() << "(" << std::dec << _error.value()
@@ -450,10 +461,11 @@ std::size_t tcp_client_endpoint_impl::write_completion_condition(
                     << "ms bytes transferred: " << std::dec << _bytes_transferred
                     << " bytes to sent: " << std::dec << _bytes_to_send << " "
                     << "remote:" << get_address_port_remote() << " ("
-                    << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-                    << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _method << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _session << "]";
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << _client << "): ["
+                    << std::setw(4) << _service << "."
+                    << std::setw(4) << _method << "."
+                    << std::setw(4) << _session << "]";
         }
     }
     return _bytes_to_send - _bytes_transferred;
@@ -792,20 +804,19 @@ void tcp_client_endpoint_impl::handle_recv_buffer_exception(
         std::size_t _recv_buffer_size) {
 
     std::stringstream its_message;
-    its_message <<"tcp_client_endpoint_impl::connection catched exception"
+    its_message << "tcp_client_endpoint_impl::connection catched exception"
             << _e.what() << " local: " << get_address_port_local()
             << " remote: " << get_address_port_remote()
-            << " shutting down connection. Start of buffer: ";
+            << " shutting down connection. Start of buffer: "
+            << std::setfill('0') << std::hex;
 
     for (std::size_t i = 0; i < _recv_buffer_size && i < 16; i++) {
-        its_message << std::setw(2) << std::setfill('0') << std::hex
-            << (int) ((*_recv_buffer)[i]) << " ";
+        its_message << std::setw(2) << (int) ((*_recv_buffer)[i]) << " ";
     }
 
     its_message << " Last 16 Bytes captured: ";
     for (int i = 15; _recv_buffer_size > 15 && i >= 0; i--) {
-        its_message << std::setw(2) << std::setfill('0') << std::hex
-            << (int) ((*_recv_buffer)[static_cast<size_t>(i)]) << " ";
+        its_message << std::setw(2) << (int) ((*_recv_buffer)[static_cast<size_t>(i)]) << " ";
     }
     VSOMEIP_ERROR << its_message.str();
     _recv_buffer->clear();
@@ -930,10 +941,11 @@ void tcp_client_endpoint_impl::send_cbk(boost::system::error_code const &_error,
                 << _error.value() << ") " << get_remote_information()
                 << " " << std::dec << queue_.size()
                 << " " << std::dec << queue_size_ << " ("
-                << std::hex << std::setw(4) << std::setfill('0') << its_client <<"): ["
-                << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_method << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_session << "]";
+                << std::hex << std::setfill('0')
+                << std::setw(4) << its_client << "): ["
+                << std::setw(4) << its_service << "."
+                << std::setw(4) << its_method << "."
+                << std::setw(4) << its_session << "]";
     }
 }
 

@@ -17,9 +17,8 @@
 
 #include "../include/event.hpp"
 #include "../include/routing_manager.hpp"
-#include "../../message/include/payload_impl.hpp"
-
 #include "../../endpoints/include/endpoint_definition.hpp"
+#include "../../message/include/payload_impl.hpp"
 
 namespace vsomeip_v3 {
 
@@ -45,7 +44,7 @@ event::event(routing_manager *_routing, bool _is_shadow)
 service_t
 event::get_service() const {
 
-    return (current_->get_service());
+    return current_->get_service();
 }
 
 void
@@ -58,7 +57,7 @@ event::set_service(service_t _service) {
 instance_t
 event::get_instance() const {
 
-    return (current_->get_instance());
+    return current_->get_instance();
 }
 
 void
@@ -84,7 +83,7 @@ event::set_version(major_version_t _major) {
 event_t
 event::get_event() const {
 
-    return (current_->get_method());
+    return current_->get_method();
 }
 
 void
@@ -97,7 +96,7 @@ event::set_event(event_t _event) {
 event_type_e
 event::get_type() const {
 
-    return (type_);
+    return type_;
 }
 
 void
@@ -115,7 +114,7 @@ event::is_field() const {
 bool
 event::is_provided() const {
 
-    return (is_provided_);
+    return is_provided_;
 }
 
 void
@@ -132,7 +131,7 @@ std::shared_ptr<payload>
 event::get_payload() const {
 
     std::lock_guard<std::mutex> its_lock(mutex_);
-    return (current_->get_payload());
+    return current_->get_payload();
 }
 
 void
@@ -152,20 +151,23 @@ void
 event::set_payload(const std::shared_ptr<payload> &_payload, bool _force) {
 
     std::lock_guard<std::mutex> its_lock(mutex_);
-    if (is_provided_ && prepare_update_payload_unlocked(_payload, _force)) {
-        if (is_updating_on_change_) {
-            if (change_resets_cycle_)
-                stop_cycle();
+    if (is_provided_) {
+        if (prepare_update_payload_unlocked(_payload, _force)) {
+            if (is_updating_on_change_) {
+                if (change_resets_cycle_)
+                    stop_cycle();
 
-            notify(_force);
+                notify(_force);
 
-            if (change_resets_cycle_)
-                start_cycle();
+                if (change_resets_cycle_)
+                    start_cycle();
 
-            update_payload_unlocked();
+                update_payload_unlocked();
+            }
         }
     } else {
-        VSOMEIP_INFO << "Cannot set payload for event ["
+        VSOMEIP_INFO << __func__ << ":" << __LINE__
+                << " Cannot set payload for event ["
                 << std::hex << std::setw(4) << std::setfill('0')
                 << current_->get_service() << "."
                 << current_->get_instance() << "."
@@ -179,13 +181,16 @@ event::set_payload(const std::shared_ptr<payload> &_payload, client_t _client,
             bool _force) {
 
     std::lock_guard<std::mutex> its_lock(mutex_);
-    if (is_provided_ && prepare_update_payload_unlocked(_payload, _force)) {
-        if (is_updating_on_change_) {
-            notify_one_unlocked(_client, _force);
-            update_payload_unlocked();
+    if (is_provided_) {
+        if (prepare_update_payload_unlocked(_payload, _force)) {
+            if (is_updating_on_change_) {
+                notify_one_unlocked(_client, _force);
+                update_payload_unlocked();
+            }
         }
     } else {
-        VSOMEIP_INFO << "Cannot set payload for event ["
+        VSOMEIP_INFO << __func__ << ":" << __LINE__
+                << " Cannot set payload for event ["
                 << std::hex << std::setw(4) << std::setfill('0')
                 << current_->get_service() << "."
                 << current_->get_instance() << "."
@@ -197,16 +202,20 @@ event::set_payload(const std::shared_ptr<payload> &_payload, client_t _client,
 void
 event::set_payload(const std::shared_ptr<payload> &_payload,
         const client_t _client,
-        const std::shared_ptr<endpoint_definition> &_target) {
+        const std::shared_ptr<endpoint_definition> &_target,
+        bool _force) {
 
     std::lock_guard<std::mutex> its_lock(mutex_);
-    if (is_provided_ && prepare_update_payload_unlocked(_payload, false)) {
-        if (is_updating_on_change_) {
-            notify_one_unlocked(_client, _target);
-            update_payload_unlocked();
+    if (is_provided_) {
+        if (prepare_update_payload_unlocked(_payload, _force)) {
+            if (is_updating_on_change_) {
+                notify_one_unlocked(_client, _target);
+                update_payload_unlocked();
+            }
         }
     } else {
-        VSOMEIP_INFO << "Cannot set payload for event ["
+        VSOMEIP_INFO << __func__ << ":" << __LINE__
+                << " Cannot set payload for event ["
                 << std::hex << std::setw(4) << std::setfill('0')
                 << current_->get_service() << "."
                 << current_->get_instance() << "."
@@ -234,10 +243,10 @@ event::set_payload_notify_pending(const std::shared_ptr<payload> &_payload) {
 
         update_payload_unlocked();
 
-        return (true);
+        return true;
     }
 
-    return (false);
+    return false;
 }
 
 void
@@ -416,10 +425,6 @@ event::notify_one_unlocked(client_t _client, bool _force) {
 
     if (is_set_) {
         set_session();
-        {
-            std::lock_guard<std::mutex> its_last_forwarded_guard(last_forwarded_mutex_);
-            last_forwarded_[_client] = std::chrono::steady_clock::now();
-        }
         routing_->send(_client, update_, _force);
     } else {
         VSOMEIP_INFO << __func__
@@ -436,7 +441,7 @@ event::prepare_update_payload(const std::shared_ptr<payload> &_payload,
         bool _force) {
 
     std::lock_guard<std::mutex> its_lock(mutex_);
-    return (prepare_update_payload_unlocked(_payload, _force));
+    return prepare_update_payload_unlocked(_payload, _force);
 }
 
 bool
@@ -449,23 +454,23 @@ event::prepare_update_payload_unlocked(
                 _payload->get_data(), _payload->get_length());
 
     bool is_change = has_changed(current_->get_payload(), its_payload);
+
     if (!_force
             && type_ == event_type_e::ET_FIELD
             && cycle_ == std::chrono::milliseconds::zero()
-            && !is_change) {
-
-        return (false);
+            && !is_change
+            && !is_shadow_) {
+        return false;
     }
 
-    if (is_change)
-        update_->set_payload(its_payload);
+    update_->set_payload(its_payload);
 
-    if (!is_set_)
+    if (!is_set_) {
         start_cycle();
+        is_set_ = true;
+    }
 
-    is_set_ = true;
-
-    return (true);
+    return true;
 }
 
 void
@@ -513,7 +518,7 @@ event::has_ref() {
 
 bool
 event::add_subscriber(eventgroup_t _eventgroup,
-        const std::shared_ptr<debounce_filter_t> &_filter,
+        const std::shared_ptr<debounce_filter_impl_t> &_filter,
         client_t _client, bool _force) {
 
     std::lock_guard<std::mutex> its_lock(eventgroups_mutex_);
@@ -544,7 +549,7 @@ event::add_subscriber(eventgroup_t _eventgroup,
             VSOMEIP_INFO << "Filter parameters: "
                     << its_filter_parameters.str();
 
-            filters_[_client] = [_filter, _client, this](
+            filters_[_client] = [_filter](
                 const std::shared_ptr<payload> &_old,
                 const std::shared_ptr<payload> &_new) {
 
@@ -600,17 +605,12 @@ event::add_subscriber(eventgroup_t _eventgroup,
                     std::chrono::steady_clock::time_point its_current
                         = std::chrono::steady_clock::now();
 
-                    std::lock_guard<std::mutex> its_last_forwarded_guard(last_forwarded_mutex_);
-                    is_elapsed = (last_forwarded_.find(_client) == last_forwarded_.end());
-                    if (!is_elapsed) {
-                        std::int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                           its_current - last_forwarded_[_client]).count();
-                        is_elapsed = (elapsed >= _filter->interval_);
-                    }
-
+                    int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            its_current - _filter->last_forwarded_).count();
+                    is_elapsed = (_filter->last_forwarded_ == std::chrono::steady_clock::time_point::max()
+                            || elapsed >= _filter->interval_);
                     if (is_elapsed || (is_changed && _filter->on_change_resets_interval_))
-                        last_forwarded_[_client] = its_current;
-                }
+                        _filter->last_forwarded_ = its_current;                }
 
                 return (is_changed || is_elapsed);
             };
@@ -638,9 +638,6 @@ event::remove_subscriber(eventgroup_t _eventgroup, client_t _client) {
     auto find_eventgroup = eventgroups_.find(_eventgroup);
     if (find_eventgroup != eventgroups_.end())
         find_eventgroup->second.erase(_client);
-
-    std::lock_guard<std::mutex> its_last_forwarded_guard(last_forwarded_mutex_);
-    last_forwarded_.erase(_client);
 }
 
 bool
@@ -688,7 +685,7 @@ event::get_filtered_subscribers(bool _force) {
                 || epsilon_change_func_(its_payload, its_payload_update));
 
         if (must_forward)
-            return (its_subscribers);
+            return its_subscribers;
 
     } else {
         byte_t is_allowed(0xff);
@@ -714,7 +711,7 @@ event::get_filtered_subscribers(bool _force) {
         }
     }
 
-    return (its_filtered_subscribers);
+    return its_filtered_subscribers;
 }
 
 std::set<client_t>
@@ -728,7 +725,7 @@ event::update_and_get_filtered_subscribers(
     if (_is_from_remote)
         update_payload_unlocked();
 
-    return (its_subscribers);
+    return its_subscribers;
 }
 
 void
@@ -816,7 +813,7 @@ event::has_changed(const std::shared_ptr<payload> &_lhs,
             its_pos++;
         }
     }
-    return (is_change);
+    return is_change;
 }
 
 std::set<client_t>

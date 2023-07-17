@@ -25,14 +25,27 @@ template<typename Protocol>
 class server_endpoint_impl: public endpoint_impl<Protocol>,
         public std::enable_shared_from_this<server_endpoint_impl<Protocol> > {
 public:
-    using socket_type = typename Protocol::socket;
-    using endpoint_type = typename Protocol::endpoint;
+    typedef typename Protocol::socket socket_type;
+    typedef typename Protocol::endpoint endpoint_type;
     struct endpoint_data_type {
         endpoint_data_type(boost::asio::io_context &_io)
             : train_(std::make_shared<train>()),
               dispatch_timer_(std::make_shared<boost::asio::steady_timer>(_io)),
               has_last_departure_(false),
-              queue_size_(0) {
+              queue_size_(0),
+              is_sending_(false),
+              sent_timer_(_io),
+			  io_(_io) {
+        }
+
+        endpoint_data_type(const endpoint_data_type &&_source)
+        	: train_(_source.train_),
+			  dispatch_timer_(std::make_shared<boost::asio::steady_timer>(_source.io_)),
+			  has_last_departure_(_source.has_last_departure_),
+			  queue_size_(_source.queue_size_),
+			  is_sending_(_source.is_sending_),
+			  sent_timer_(_source.io_),
+			  io_(_source.io_) {
         }
 
         std::shared_ptr<train> train_;
@@ -44,10 +57,15 @@ public:
 
         std::deque<std::pair<message_buffer_ptr_t, uint32_t> > queue_;
         std::size_t queue_size_;
+
+        bool is_sending_;
+        boost::asio::steady_timer sent_timer_;
+
+        boost::asio::io_context &io_;
     };
 
-    using target_data_type = typename std::map<endpoint_type, endpoint_data_type>;
-    using target_data_iterator_type = typename target_data_type::iterator;
+    typedef typename std::map<endpoint_type, endpoint_data_type> target_data_type;
+    typedef typename target_data_type::iterator target_data_iterator_type;
 
     server_endpoint_impl(const std::shared_ptr<endpoint_host>& _endpoint_host,
                          const std::shared_ptr<routing_host>& _routing_host,
@@ -70,7 +88,7 @@ public:
     void prepare_stop(const endpoint::prepare_stop_handler_t &_handler,
                       service_t _service);
     virtual void stop();
-    bool flush(target_data_iterator_type _it);
+    bool flush(endpoint_type _it);
 
     size_t get_queue_size() const;
 
@@ -80,9 +98,9 @@ public:
 
 public:
     void connect_cbk(boost::system::error_code const &_error);
-    void send_cbk(const target_data_iterator_type _it,
+    void send_cbk(const endpoint_type _key,
                   boost::system::error_code const &_error, std::size_t _bytes);
-    void flush_cbk(target_data_iterator_type _it,
+    void flush_cbk(endpoint_type _key,
             const boost::system::error_code &_error_code);
 
 protected:
@@ -105,8 +123,7 @@ protected:
     bool check_queue_limit(const uint8_t *_data, std::uint32_t _size,
                            std::size_t _current_queue_size) const;
     bool queue_train(const target_data_iterator_type _it,
-            const std::shared_ptr<train> &_train,
-            bool _queue_size_zero_on_entry);
+            const std::shared_ptr<train> &_train);
 
     void send_segments(const tp::tp_split_messages_t &_segments,
             std::uint32_t _separation_time, const endpoint_type &_target);
@@ -122,10 +139,6 @@ protected:
     std::map<service_t, endpoint::prepare_stop_handler_t> prepare_stop_handlers_;
 
     mutable std::mutex mutex_;
-
-    std::mutex sent_mutex_;
-    bool is_sending_;
-    boost::asio::steady_timer sent_timer_;
 
 private:
     virtual std::string get_remote_information(

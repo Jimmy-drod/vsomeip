@@ -19,8 +19,9 @@
 
 namespace vsomeip_v3 {
 
-using tcp_server_endpoint_base_impl =
-    server_endpoint_impl<boost::asio::ip::tcp>;
+typedef server_endpoint_impl<
+            boost::asio::ip::tcp
+        > tcp_server_endpoint_base_impl;
 
 class tcp_server_endpoint_impl: public tcp_server_endpoint_base_impl {
 
@@ -40,7 +41,6 @@ public:
     bool send_error(const std::shared_ptr<endpoint_definition> _target,
                 const byte_t *_data, uint32_t _size);
     bool send_queued(const target_data_iterator_type _it);
-    void send_queued_sync(const target_data_iterator_type _it);
     void get_configured_times_from_endpoint(
             service_t _service, method_t _method,
             std::chrono::nanoseconds *_debouncing,
@@ -63,7 +63,7 @@ private:
     class connection: public std::enable_shared_from_this<connection> {
 
     public:
-        using ptr = std::shared_ptr<connection>;
+        typedef std::shared_ptr<connection> ptr;
 
         static ptr create(const std::weak_ptr<tcp_server_endpoint_impl>& _server,
                           std::uint32_t _max_message_size,
@@ -82,7 +82,6 @@ private:
         void receive();
 
         void send_queued(const target_data_iterator_type _it);
-        void send_queued_sync(const target_data_iterator_type _it);
 
         void set_remote_info(const endpoint_type &_remote);
         std::string get_address_port_remote() const;
@@ -136,7 +135,7 @@ private:
     std::mutex acceptor_mutex_;
     boost::asio::ip::tcp::acceptor acceptor_;
     std::mutex connections_mutex_;
-    using connections_t = std::map<endpoint_type, connection::ptr>;
+    typedef std::map<endpoint_type, connection::ptr> connections_t;
     connections_t connections_;
     const std::uint32_t buffer_shrink_threshold_;
     const std::uint16_t local_port_;

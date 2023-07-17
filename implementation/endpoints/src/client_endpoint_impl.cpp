@@ -36,7 +36,7 @@ client_endpoint_impl<Protocol>::client_endpoint_impl(
         const std::shared_ptr<configuration>& _configuration)
         : endpoint_impl<Protocol>(_endpoint_host, _routing_host, _local, _io,
                 _max_message_size, _queue_limit, _configuration),
-          socket_(new socket_type(_io)), remote_(_remote),
+          socket_(std::make_unique<socket_type>(_io)), remote_(_remote),
           flush_timer_(_io), connect_timer_(_io),
           connect_timeout_(VSOMEIP_DEFAULT_CONNECT_TIMEOUT), // TODO: use config variable
           state_(cei_state_e::CLOSED),
@@ -146,7 +146,7 @@ client_endpoint_impl<Protocol>::get_front() {
     if (queue_.size())
         its_entry = queue_.front();
 
-    return (its_entry);
+    return its_entry;
 }
 
 
@@ -405,17 +405,12 @@ bool client_endpoint_impl<Protocol>::flush() {
         start_dispatch_timer(its_now);
     }
 
-    return (has_queued);
+    return has_queued;
 }
 
 template<typename Protocol>
 void client_endpoint_impl<Protocol>::connect_cbk(
         boost::system::error_code const &_error) {
-
-    if (_error != boost::asio::error::timed_out) {
-        std::lock_guard<std::mutex> its_lock(connecting_timer_mutex_);
-        connecting_timer_.cancel();
-    }
 
     if (_error == boost::asio::error::operation_aborted
             || endpoint_impl<Protocol>::sending_blocked_) {
@@ -466,6 +461,18 @@ void client_endpoint_impl<Protocol>::connect_cbk(
             receive();
         }
     }
+}
+
+template<typename Protocol>
+void client_endpoint_impl<Protocol>::cancel_and_connect_cbk(
+        boost::system::error_code const &_error) {
+    {
+        /* Need this for TCP endpoints for now because we have no
+         direct control about the point in time the connect has finished */
+        std::lock_guard<std::mutex> its_lock(connecting_timer_mutex_);
+        connecting_timer_.cancel();
+    }
+    connect_cbk(_error);
 }
 
 template<typename Protocol>
@@ -539,11 +546,12 @@ void client_endpoint_impl<Protocol>::send_cbk(
                         << _error.message() << " (" << std::dec
                         << _error.value() << ") " << get_remote_information()
                         << " " << std::dec << queue_.size()
-                        << " " << std::dec << queue_size_ << " ("
-                        << std::hex << std::setw(4) << std::setfill('0') << its_client <<"): ["
-                        << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_method << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_session << "]";
+                        << " " << queue_size_ << " ("
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << its_client << "): ["
+                        << std::setw(4) << its_service << "."
+                        << std::setw(4) << its_method << "."
+                        << std::setw(4) << its_session << "]";
             }
         }
         if (!stopping) {
@@ -601,12 +609,13 @@ void client_endpoint_impl<Protocol>::send_cbk(
         VSOMEIP_WARNING << "cei::send_cbk received error: " << _error.message()
                 << " (" << std::dec << _error.value() << ") "
                 << get_remote_information() << " "
-                << " " << std::dec << queue_.size()
-                << " " << std::dec << queue_size_ << " ("
-                << std::hex << std::setw(4) << std::setfill('0') << its_client <<"): ["
-                << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_method << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_session << "]";
+                << " " << queue_.size()
+                << " " << queue_size_ << " ("
+                << std::hex << std::setfill('0')
+                << std::setw(4) << its_client << "): ["
+                << std::setw(4) << its_service << "."
+                << std::setw(4) << its_method << "."
+                << std::setw(4) << its_session << "]";
         print_status();
     }
 }
@@ -761,12 +770,13 @@ bool client_endpoint_impl<Protocol>::check_queue_limit(const uint8_t *_data, std
         VSOMEIP_ERROR << "cei::check_queue_limit: queue size limit (" << std::dec
                 << endpoint_impl<Protocol>::queue_limit_
                 << ") reached. Dropping message ("
-                << std::hex << std::setw(4) << std::setfill('0') << its_client <<"): ["
-                << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_method << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_session << "] "
+                << std::hex << std::setfill('0')
+		<< std::setw(4) << its_client << "): ["
+                << std::setw(4) << its_service << "."
+                << std::setw(4) << its_method << "."
+                << std::setw(4) << its_session << "] "
                 << "queue_size: " << std::dec << queue_size_
-                << " data size: " << std::dec << _size;
+                << " data size: " << _size;
         return false;
     }
     return true;

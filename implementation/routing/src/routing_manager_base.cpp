@@ -9,6 +9,7 @@
 #include <vsomeip/internal/logger.hpp>
 
 #include "../include/routing_manager_base.hpp"
+#include "../../configuration/include/debounce_filter_impl.hpp"
 #include "../../protocol/include/send_command.hpp"
 #include "../../security/include/policy_manager_impl.hpp"
 #include "../../security/include/security.hpp"
@@ -50,12 +51,12 @@ routing_manager_base::routing_manager_base(routing_manager_host *_host) :
 
 boost::asio::io_context &routing_manager_base::get_io() {
 
-    return (io_);
+    return io_;
 }
 
 client_t routing_manager_base::get_client() const {
 
-    return (host_->get_client());
+    return host_->get_client();
 }
 
 void routing_manager_base::set_client(const client_t &_client) {
@@ -69,7 +70,7 @@ session_t routing_manager_base::get_session(bool _is_request) {
 
 const vsomeip_sec_client_t *routing_manager_base::get_sec_client() const {
 
-    return (host_->get_sec_client());
+    return host_->get_sec_client();
 }
 
 std::string routing_manager_base::get_client_host() const {
@@ -106,13 +107,15 @@ bool routing_manager_base::offer_service(client_t _client,
             its_info->set_ttl(DEFAULT_TTL);
         } else {
             VSOMEIP_ERROR << "rm_base::offer_service service property mismatch ("
-                    << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-                    << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _instance << ":"
-                    << std::dec << static_cast<std::uint32_t>(its_info->get_major()) << ":"
-                    << std::dec << its_info->get_minor() << "] passed: "
-                    << std::dec << static_cast<std::uint32_t>(_major) << ":"
-                    << std::dec << _minor;
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << _client << "): ["
+                    << std::setw(4) << _service << "."
+                    << std::setw(4) << _instance << ":"
+                    << std::dec
+                    << static_cast<std::uint32_t>(its_info->get_major()) << ":"
+                    << its_info->get_minor() << "] passed: "
+                    << static_cast<std::uint32_t>(_major) << ":"
+                    << _minor;
             return false;
         }
     } else {
@@ -175,13 +178,15 @@ void routing_manager_base::request_service(client_t _client,
             its_info->add_client(_client);
         } else {
             VSOMEIP_ERROR << "rm_base::request_service service property mismatch ("
-                    << std::hex << std::setw(4) << std::setfill('0') << _client <<"): ["
-                    << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _instance << ":"
-                    << std::dec << static_cast<std::uint32_t>(its_info->get_major()) << ":"
-                    << std::dec << its_info->get_minor() << "] passed: "
-                    << std::dec << static_cast<std::uint32_t>(_major) << ":"
-                    << std::dec << _minor;
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << _client << "): ["
+                    << std::setw(4) << _service << "."
+                    << std::setw(4) << _instance << ":"
+                    << std::dec
+                    << static_cast<std::uint32_t>(its_info->get_major()) << ":"
+                    << its_info->get_minor() << "] passed: "
+                    << static_cast<std::uint32_t>(_major) << ":"
+                    << _minor;
         }
     }
 }
@@ -322,17 +327,15 @@ void routing_manager_base::register_event(client_t _client,
         }
 
         if (_is_shadow && !_epsilon_change_func) {
-            std::shared_ptr<debounce_filter_t> its_debounce
+            std::shared_ptr<debounce_filter_impl_t> its_debounce
                 = configuration_->get_debounce(host_->get_name(), _service, _instance, _notifier);
             if (its_debounce) {
                 VSOMEIP_WARNING << "Using debounce configuration for "
                         << " SOME/IP event "
-                        << std::hex << std::setw(4) << std::setfill('0')
-                        << _service << "."
-                        << std::hex << std::setw(4) << std::setfill('0')
-                        << _instance << "."
-                        << std::hex << std::setw(4) << std::setfill('0')
-                        << _notifier << ".";
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << _service << "."
+                        << std::setw(4) << _instance << "."
+                        << std::setw(4) << _notifier << ".";
                 std::stringstream its_debounce_parameters;
                 its_debounce_parameters << "(on_change="
                         << (its_debounce->on_change_ ? "true" : "false")
@@ -348,8 +351,6 @@ void routing_manager_base::register_event(client_t _client,
                     const std::shared_ptr<payload> &_old,
                     const std::shared_ptr<payload> &_new) {
 
-                    static std::chrono::steady_clock::time_point its_last_forwarded
-                        = std::chrono::steady_clock::time_point::max();
                     bool is_changed(false), is_elapsed(false);
 
                     // Check whether we should forward because of changed data
@@ -401,13 +402,12 @@ void routing_manager_base::register_event(client_t _client,
                         // we did last time
                         std::chrono::steady_clock::time_point its_current
                             = std::chrono::steady_clock::now();
-
-                        std::int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                           its_current - its_last_forwarded).count();
-                        is_elapsed = (its_last_forwarded == std::chrono::steady_clock::time_point::max()
+                        int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                           its_current - its_debounce->last_forwarded_).count();
+                        is_elapsed = (its_debounce->last_forwarded_ == std::chrono::steady_clock::time_point::max()
                                 || elapsed >= its_debounce->interval_);
                         if (is_elapsed || (is_changed && its_debounce->on_change_resets_interval_))
-                            its_last_forwarded = its_current;
+                            its_debounce->last_forwarded_ = its_current;
                     }
                     return (is_changed || is_elapsed);
                 };
@@ -526,11 +526,11 @@ std::set<std::shared_ptr<event>> routing_manager_base::find_events(
         if (found_instance != found_service->second.end()) {
             auto found_eventgroup = found_instance->second.find(_eventgroup);
             if (found_eventgroup != found_instance->second.end()) {
-                return (found_eventgroup->second->get_events());
+                return found_eventgroup->second->get_events();
             }
         }
     }
-    return (its_events);
+    return its_events;
 }
 
 std::vector<event_t> routing_manager_base::find_events(
@@ -546,7 +546,7 @@ std::vector<event_t> routing_manager_base::find_events(
             }
         }
     }
-    return (its_events);
+    return its_events;
 }
 
 bool routing_manager_base::is_response_allowed(client_t _sender, service_t _service,
@@ -656,7 +656,7 @@ void routing_manager_base::subscribe(client_t _client,
         const vsomeip_sec_client_t *_sec_client,
         service_t _service, instance_t _instance,
         eventgroup_t _eventgroup, major_version_t _major,
-        event_t _event, const std::shared_ptr<debounce_filter_t> &_filter) {
+        event_t _event, const std::shared_ptr<debounce_filter_impl_t> &_filter) {
 
     (void)_major;
     (void)_sec_client;
@@ -759,11 +759,12 @@ void routing_manager_base::notify_one(service_t _service, instance_t _instance,
                 // cache notification if subscription is in progress
                 if (subscription_state_e::IS_SUBSCRIBING == its_subscription_state) {
                     VSOMEIP_INFO << "routing_manager_base::notify_one("
-                        << std::hex << std::setw(4) << std::setfill('0') << _client << "): ["
-                        << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << valid_group << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << _event << "]"
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << _client << "): ["
+                        << std::setw(4) << _service << "."
+                        << std::setw(4) << _instance << "."
+                        << std::setw(4) << valid_group << "."
+                        << std::setw(4) << _event << "]"
                         << " insert pending notification!";
                     std::shared_ptr<message> its_notification
                         = runtime::get()->create_notification();
@@ -801,11 +802,12 @@ void routing_manager_base::send_pending_notify_ones(service_t _service, instance
             auto its_group = its_instance->second.find(_eventgroup);
             if (its_group != its_instance->second.end()) {
                 VSOMEIP_INFO << "routing_manager_base::send_pending_notify_ones("
-                    << std::hex << std::setw(4) << std::setfill('0') << _client << "): ["
-                    << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _eventgroup << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << its_group->second->get_method() << "]";
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << _client << "): ["
+                    << std::setw(4) << _service << "."
+                    << std::setw(4) << _instance << "."
+                    << std::setw(4) << _eventgroup << "."
+                    << std::setw(4) << its_group->second->get_method() << "]";
 
                 notify_one(_service, _instance, its_group->second->get_method(),
                         its_group->second->get_payload(), _client, false, _remote_subscriber);
@@ -904,7 +906,7 @@ bool routing_manager_base::send(client_t _client,
     } else {
         VSOMEIP_ERROR << "Failed to serialize message. Check message size!";
     }
-    return (is_sent);
+    return is_sent;
 }
 
 // ********************************* PROTECTED **************************************
@@ -936,7 +938,7 @@ std::shared_ptr<serviceinfo> routing_manager_base::find_service(
             its_info = found_instance->second;
         }
     }
-    return (its_info);
+    return its_info;
 }
 
 void routing_manager_base::clear_service_info(service_t _service, instance_t _instance,
@@ -1124,7 +1126,7 @@ std::shared_ptr<event> routing_manager_base::find_event(service_t _service,
             }
         }
     }
-    return (its_event);
+    return its_event;
 }
 
 std::shared_ptr<eventgroupinfo> routing_manager_base::find_eventgroup(
@@ -1172,7 +1174,7 @@ std::shared_ptr<eventgroupinfo> routing_manager_base::find_eventgroup(
             }
         }
     }
-    return (its_info);
+    return its_info;
 }
 
 void routing_manager_base::remove_eventgroup_info(service_t _service,
@@ -1255,12 +1257,12 @@ bool routing_manager_base::send_local(
         has_sent = _target->send(&its_buffer[0], uint32_t(its_buffer.size()));
     }
 
-    return (has_sent);
+    return has_sent;
 }
 
 bool routing_manager_base::insert_subscription(
         service_t _service, instance_t _instance, eventgroup_t _eventgroup,
-        event_t _event, const std::shared_ptr<debounce_filter_t> &_filter,
+        event_t _event, const std::shared_ptr<debounce_filter_impl_t> &_filter,
         client_t _client, std::set<event_t> *_already_subscribed_events) {
 
     bool is_inserted(false);
@@ -1271,11 +1273,12 @@ bool routing_manager_base::insert_subscription(
                     host_->is_routing());
         } else {
             VSOMEIP_WARNING << "routing_manager_base::insert_subscription("
-                << std::hex << std::setw(4) << std::setfill('0') << _client << "): ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _eventgroup << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _event << "]"
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _client << "): ["
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance << "."
+                << std::setw(4) << _eventgroup << "."
+                << std::setw(4) << _event << "]"
                 << " received subscription for unknown (unrequested / "
                 << "unoffered) event. Creating placeholder event holding "
                 << "subscription until event is requested/offered.";
@@ -1307,11 +1310,12 @@ bool routing_manager_base::insert_subscription(
         }
         if (create_place_holder) {
             VSOMEIP_WARNING << "routing_manager_base::insert_subscription("
-                << std::hex << std::setw(4) << std::setfill('0') << _client << "): ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _eventgroup << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _event << "]"
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _client << "): ["
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance << "."
+                << std::setw(4) << _eventgroup << "."
+                << std::setw(4) << _event << "]"
                 << " received subscription for unknown (unrequested / "
                 << "unoffered) eventgroup. Creating placeholder event holding "
                 << "subscription until event is requested/offered.";
@@ -1330,8 +1334,7 @@ std::shared_ptr<serializer> routing_manager_base::get_serializer() {
                 << std::hex << std::setw(4) << std::setfill('0')
                 << get_client()
                 << " has no available serializer. Waiting...";
-
-        serializer_condition_.wait(its_lock, [this] { return !serializers_.empty(); });
+        serializer_condition_.wait(its_lock);
         VSOMEIP_INFO << __func__ << ": Client "
                         << std::hex << std::setw(4) << std::setfill('0')
                         << get_client()
@@ -1341,7 +1344,7 @@ std::shared_ptr<serializer> routing_manager_base::get_serializer() {
     auto its_serializer = serializers_.front();
     serializers_.pop();
 
-    return (its_serializer);
+    return its_serializer;
 }
 
 void routing_manager_base::put_serializer(
@@ -1358,8 +1361,7 @@ std::shared_ptr<deserializer> routing_manager_base::get_deserializer() {
     while (deserializers_.empty()) {
         VSOMEIP_INFO << std::hex << "client " << get_client() <<
                 "routing_manager_base::get_deserializer ~> all in use!";
-
-        deserializer_condition_.wait(its_lock, [this] { return !deserializers_.empty(); });
+        deserializer_condition_.wait(its_lock);
         VSOMEIP_INFO << std::hex << "client " << get_client() <<
                         "routing_manager_base::get_deserializer ~> wait finished!";
     }
@@ -1367,7 +1369,7 @@ std::shared_ptr<deserializer> routing_manager_base::get_deserializer() {
     auto its_deserializer = deserializers_.front();
     deserializers_.pop();
 
-    return (its_deserializer);
+    return its_deserializer;
 }
 
 void routing_manager_base::put_deserializer(
@@ -1455,12 +1457,12 @@ routing_manager_base::get_guest(client_t _client,
     std::lock_guard<std::mutex> its_lock(guests_mutex_);
     auto find_guest = guests_.find(_client);
     if (find_guest == guests_.end())
-        return (false);
+        return false;
 
     _address = find_guest->second.first;
     _port = find_guest->second.second;
 
-    return (true);
+    return true;
 }
 
 void

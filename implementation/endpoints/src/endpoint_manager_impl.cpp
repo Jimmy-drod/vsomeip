@@ -129,10 +129,11 @@ void endpoint_manager_impl::is_remote_service_known(
                         *_reliable_known = true;
                     } else {
                         VSOMEIP_WARNING << "Reliable service endpoint has changed: ["
-                            << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-                            << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
+                            << std::hex << std::setfill('0')
+                            << std::setw(4) << _service << "."
+                            << std::setw(4) << _instance << "."
                             << std::dec << static_cast<std::uint32_t>(_major) << "."
-                            << std::dec << _minor << "] old: "
+                            << _minor << "] old: "
                             << its_definition->get_address().to_string() << ":"
                             << its_definition->get_port() << " new: "
                             << _reliable_address.to_string() << ":"
@@ -149,10 +150,11 @@ void endpoint_manager_impl::is_remote_service_known(
                         *_unreliable_known = true;
                     } else {
                         VSOMEIP_WARNING << "Unreliable service endpoint has changed: ["
-                            << std::hex << std::setfill('0') << std::setw(4) << _service << "."
-                            << std::hex << std::setfill('0') << std::setw(4) << _instance << "."
+                            << std::hex << std::setfill('0')
+                            << std::setw(4) << _service << "."
+                            << std::setw(4) << _instance << "."
                             << std::dec << static_cast<std::uint32_t>(_major) << "."
-                            << std::dec << _minor << "] old: "
+                            << _minor << "] old: "
                             << its_definition->get_address().to_string() << ":"
                             << its_definition->get_port() << " new: "
                             << _unreliable_address.to_string() << ":"
@@ -290,7 +292,7 @@ std::shared_ptr<endpoint> endpoint_manager_impl::create_server_endpoint(
                 << " (" << _reliable << ")";
     }
 
-    return (its_endpoint);
+    return its_endpoint;
 }
 
 std::shared_ptr<endpoint> endpoint_manager_impl::find_server_endpoint(
@@ -304,7 +306,7 @@ std::shared_ptr<endpoint> endpoint_manager_impl::find_server_endpoint(
             its_endpoint = found_endpoint->second;
         }
     }
-    return (its_endpoint);
+    return its_endpoint;
 }
 
 std::shared_ptr<endpoint> endpoint_manager_impl::find_or_create_server_endpoint(
@@ -325,7 +327,7 @@ std::shared_ptr<endpoint> endpoint_manager_impl::find_or_create_server_endpoint(
         }
         its_endpoint->increment_use_count();
     }
-    return (its_endpoint);
+    return its_endpoint;
 }
 
 bool endpoint_manager_impl::remove_server_endpoint(uint16_t _port, bool _reliable) {
@@ -351,8 +353,14 @@ void
 endpoint_manager_impl::clear_client_endpoints(
         service_t _service, instance_t _instance, bool _reliable) {
 
-    std::shared_ptr<endpoint> endpoint_to_delete;
+    std::shared_ptr<endpoint> its_endpoint;
+
+    boost::asio::ip::address its_remote_address;
+    port_t its_local_port(0);
+    port_t its_remote_port(0);
+
     bool other_services_reachable_through_endpoint(false);
+
     {
         std::lock_guard<std::recursive_mutex> its_lock(endpoint_mutex_);
         // Clear client endpoints for remote services (generic and specific ones)
@@ -363,8 +371,7 @@ endpoint_manager_impl::clear_client_endpoints(
                 const auto found_reliability = found_instance->second.find(_reliable);
                 if (found_reliability != found_instance->second.end()) {
                     service_instances_[_service].erase(found_reliability->second.get());
-                    endpoint_to_delete = found_reliability->second;
-
+                    its_endpoint = found_reliability->second;
                     found_instance->second.erase(found_reliability);
                     if (found_instance->second.empty()) {
                         found_service->second.erase(found_instance);
@@ -378,12 +385,12 @@ endpoint_manager_impl::clear_client_endpoints(
 
         // Only stop and delete the endpoint if none of the services
         // reachable through it is online anymore.
-        if (endpoint_to_delete) {
+        if (its_endpoint) {
             for (const auto& service : remote_services_) {
                 for (const auto& instance : service.second) {
                     const auto found_reliability = instance.second.find(_reliable);
                     if (found_reliability != instance.second.end()
-                            && found_reliability->second == endpoint_to_delete) {
+                            && found_reliability->second == its_endpoint) {
                         other_services_reachable_through_endpoint = true;
                         break;
                     }
@@ -393,35 +400,35 @@ endpoint_manager_impl::clear_client_endpoints(
 
             if (!other_services_reachable_through_endpoint) {
                 partition_id_t its_partition;
-                boost::asio::ip::address its_address;
-                std::uint16_t its_port(0);
 
                 its_partition = configuration_->get_partition_id(_service, _instance);
 
                 if (_reliable) {
-                    std::shared_ptr<tcp_client_endpoint_impl> ep =
-                            std::dynamic_pointer_cast<tcp_client_endpoint_impl>(endpoint_to_delete);
-                    if (ep) {
-                        its_port = ep->get_remote_port();
-                        ep->get_remote_address(its_address);
+                    std::shared_ptr<tcp_client_endpoint_impl> its_tcp_client_endpoint =
+                            std::dynamic_pointer_cast<tcp_client_endpoint_impl>(its_endpoint);
+                    if (its_tcp_client_endpoint) {
+                        its_local_port = its_tcp_client_endpoint->get_local_port();
+                        its_remote_port = its_tcp_client_endpoint->get_remote_port();
+                        its_tcp_client_endpoint->get_remote_address(its_remote_address);
                     }
                 } else {
-                    std::shared_ptr<udp_client_endpoint_impl> ep =
-                            std::dynamic_pointer_cast<udp_client_endpoint_impl>(endpoint_to_delete);
-                    if (ep) {
-                        its_port = ep->get_remote_port();
-                        ep->get_remote_address(its_address);
+                    std::shared_ptr<udp_client_endpoint_impl> its_udp_client_endpoint =
+                            std::dynamic_pointer_cast<udp_client_endpoint_impl>(its_endpoint);
+                    if (its_udp_client_endpoint) {
+                        its_local_port = its_udp_client_endpoint->get_local_port();
+                        its_remote_port = its_udp_client_endpoint->get_remote_port();
+                        its_udp_client_endpoint->get_remote_address(its_remote_address);
                     }
                 }
-                const auto found_ip = client_endpoints_by_ip_.find(its_address);
+                const auto found_ip = client_endpoints_by_ip_.find(its_remote_address);
                 if (found_ip != client_endpoints_by_ip_.end()) {
-                    const auto found_port = found_ip->second.find(its_port);
+                    const auto found_port = found_ip->second.find(its_remote_port);
                     if (found_port != found_ip->second.end()) {
                         auto found_reliable = found_port->second.find(_reliable);
                         if (found_reliable != found_port->second.end()) {
                             const auto found_partition = found_reliable->second.find(its_partition);
                             if (found_partition != found_reliable->second.end()) {
-                                if (found_partition->second == endpoint_to_delete) {
+                                if (found_partition->second == its_endpoint) {
                                     found_reliable->second.erase(its_partition);
                                     // delete if necessary
                                     if (0 == found_reliable->second.size()) {
@@ -441,8 +448,11 @@ endpoint_manager_impl::clear_client_endpoints(
             }
         }
     }
-    if (!other_services_reachable_through_endpoint && endpoint_to_delete) {
-        endpoint_to_delete->stop();
+    if (!other_services_reachable_through_endpoint && its_endpoint) {
+        release_used_client_port(its_remote_address, its_remote_port,
+                _reliable, its_local_port);
+
+        its_endpoint->stop();
     }
 }
 
@@ -490,13 +500,9 @@ void endpoint_manager_impl::find_or_create_multicast_endpoint(
 
         auto its_udp_server_endpoint
             = std::dynamic_pointer_cast<udp_server_endpoint_impl>(its_endpoint);
-        if (_port != configuration_->get_sd_port()) {
-            its_udp_server_endpoint->join(_address.to_string());
-        } else {
-            its_udp_server_endpoint->join_unlocked(_address.to_string());
-        }
+        its_udp_server_endpoint->join(_address.to_string());
     } else {
-        VSOMEIP_ERROR <<"Could not find/create multicast endpoint!";
+        VSOMEIP_ERROR << "Could not find/create multicast endpoint!";
     }
 }
 
@@ -629,7 +635,7 @@ endpoint_manager_impl::create_routing_root(
                 << its_routing_host_id
                 << "]";
 
-        return (false);
+        return false;
     }
 
     if (configuration_->is_local_routing()) {
@@ -689,7 +695,7 @@ endpoint_manager_impl::create_routing_root(
                             << std::hex << std::setw(4) << std::setfill('0')
                             << VSOMEIP_ROUTING_CLIENT << ": " << e.what();
 
-                    return (false);
+                    return false;
                 }
             }
 
@@ -711,7 +717,7 @@ endpoint_manager_impl::create_routing_root(
                     << std::hex << std::setw(4) << std::setfill('0')
                     << VSOMEIP_ROUTING_CLIENT << ": " << e.what();
 
-            return (false);
+            return false;
         }
 
         _is_socket_activated = false;
@@ -723,24 +729,35 @@ endpoint_manager_impl::create_routing_root(
         VSOMEIP_INFO << __func__ << ": Routing root @ "
                 << its_address.to_string() << ":" << std::dec << its_port;
 
-        try {
-            _root =
-                std::make_shared <local_tcp_server_endpoint_impl>(
-                        shared_from_this(), _host,
-                        boost::asio::ip::tcp::endpoint(its_address, its_port),
-                        io_, configuration_, true);
-        } catch (const std::exception &e) {
-            VSOMEIP_ERROR << "Remote routing root endpoint creation failed. Client ID: "
-                    << std::hex << std::setw(4) << std::setfill('0')
+        bool create_routing_result = false;
+        for (int attempt = 0; attempt < VSOMEIP_ROUTING_ROOT_RECONNECT_RETRIES; ++attempt) {
+            try {
+                _root =
+                    std::make_shared <local_tcp_server_endpoint_impl>(
+                            shared_from_this(), _host,
+                            boost::asio::ip::tcp::endpoint(its_address, its_port),
+                            io_, configuration_, true);
+                create_routing_result = true;
+                break;
+            } catch (const std::exception &e) {
+                VSOMEIP_ERROR << "endpoint_manager_impl::create_routing_root: "
+                    << "Remote routing root endpoint creation failed (Attempt: " << attempt << ")."
+                    << "Client ID: " << std::hex << std::setw(4) << std::setfill('0')
                     << VSOMEIP_ROUTING_CLIENT << ": " << e.what();
 
-            return (false);
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(VSOMEIP_ROUTING_ROOT_RECONNECT_INTERVAL));
+            }
         }
+        
+        if (!create_routing_result) {
+            return false;
+        } 
 
         _is_socket_activated = false;
     }
 
-    return (true);
+    return true;
 }
 
 instance_t endpoint_manager_impl::find_instance(
@@ -798,11 +815,11 @@ bool endpoint_manager_impl::remove_instance_multicast(service_t _service,
                         service_instances_multicast_.erase(_service);
                     }
                 }
-                return (true);
+                return true;
             }
         }
     }
-    return (false);
+    return false;
 }
 
 void endpoint_manager_impl::on_connect(std::shared_ptr<endpoint> _endpoint) {
@@ -1055,7 +1072,7 @@ endpoint_manager_impl::find_remote_client(
         }
     }
 
-    return (its_endpoint);
+    return its_endpoint;
 }
 
 std::shared_ptr<endpoint> endpoint_manager_impl::create_remote_client(
@@ -1164,7 +1181,7 @@ std::shared_ptr<endpoint> endpoint_manager_impl::create_client_endpoint(
         VSOMEIP_ERROR << __func__ << " Client endpoint creation failed";
     }
 
-    return (its_endpoint);
+    return its_endpoint;
 }
 
 void
@@ -1301,9 +1318,7 @@ endpoint_manager_impl::process_multicast_options() {
                 its_lock.lock();
             }
         } else {
-            options_condition_.wait(its_lock, [this] {
-                return !options_queue_.empty() || !is_processing_options_;
-            });
+            options_condition_.wait(its_lock);
         }
     }
 }

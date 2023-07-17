@@ -119,19 +119,25 @@ message::~message() try {
         // Prepare time stamp
         auto its_time_t = std::chrono::system_clock::to_time_t(when_);
         struct tm its_time;
+#ifdef _WIN32
+        localtime_s(&its_time, &its_time_t);
+#else
         localtime_r(&its_time_t, &its_time);
+#endif
         auto its_ms = (when_.time_since_epoch().count() / 100) % 1000000;
 
         if (its_configuration->has_console_log()) {
 #ifndef ANDROID
             std::cout
-                << std::dec << std::setw(4) << its_time.tm_year + 1900 << "-"
-                << std::dec << std::setw(2) << std::setfill('0') << its_time.tm_mon + 1 << "-"
-                << std::dec << std::setw(2) << std::setfill('0') << its_time.tm_mday << " "
-                << std::dec << std::setw(2) << std::setfill('0') << its_time.tm_hour << ":"
-                << std::dec << std::setw(2) << std::setfill('0') << its_time.tm_min << ":"
-                << std::dec << std::setw(2) << std::setfill('0') << its_time.tm_sec << "."
-                << std::dec << std::setw(6) << std::setfill('0') << its_ms << " ["
+                << std::dec
+                << std::setw(4) << its_time.tm_year + 1900 << "-"
+                << std::setfill('0')
+                << std::setw(2) << its_time.tm_mon + 1 << "-"
+                << std::setw(2) << its_time.tm_mday << " "
+                << std::setw(2) << its_time.tm_hour << ":"
+                << std::setw(2) << its_time.tm_min << ":"
+                << std::setw(2) << its_time.tm_sec << "."
+                << std::setw(6) << its_ms << " ["
                 << its_level << "] "
                 << buffer_.data_.str()
                 << std::endl;
@@ -169,13 +175,15 @@ message::~message() try {
                     std::ios_base::app);
             if (its_logfile.is_open()) {
                 its_logfile
-                    << std::dec << std::setw(4) << its_time.tm_year + 1900 << "-"
-                    << std::dec << std::setw(2) << std::setfill('0') << its_time.tm_mon + 1 << "-"
-                    << std::dec << std::setw(2) << std::setfill('0') << its_time.tm_mday << " "
-                    << std::dec << std::setw(2) << std::setfill('0') << its_time.tm_hour << ":"
-                    << std::dec << std::setw(2) << std::setfill('0') << its_time.tm_min << ":"
-                    << std::dec << std::setw(2) << std::setfill('0') << its_time.tm_sec << "."
-                    << std::dec << std::setw(6) << std::setfill('0') << its_ms << " ["
+                    << std::dec
+                    << std::setw(4) << its_time.tm_year + 1900 << "-"
+                    << std::setfill('0')
+                    << std::setw(2) << its_time.tm_mon + 1 << "-"
+                    << std::setw(2) << its_time.tm_mday << " "
+                    << std::setw(2) << its_time.tm_hour << ":"
+                    << std::setw(2) << its_time.tm_min << ":"
+                    << std::setw(2) << its_time.tm_sec << "."
+                    << std::setw(6) << its_ms << " ["
                     << its_level << "] "
                     << buffer_.data_.str()
                     << std::endl;
@@ -199,13 +207,13 @@ message::buffer::overflow(std::streambuf::int_type c) {
         data_ << (char)c;
     }
 
-    return (c);
+    return c;
 }
 
 std::streamsize
 message::buffer::xsputn(const char *s, std::streamsize n) {
     data_.write(s, n);
-    return (n);
+    return n;
 }
 
 } // namespace logger

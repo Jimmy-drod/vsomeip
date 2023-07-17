@@ -53,7 +53,6 @@ bool udp_client_endpoint_impl::is_local() const {
 }
 
 void udp_client_endpoint_impl::connect() {
-    start_connecting_timer();
     std::lock_guard<std::mutex> its_lock(socket_mutex_);
     boost::system::error_code its_error;
     socket_->open(remote_.protocol(), its_error);
@@ -537,10 +536,11 @@ void udp_client_endpoint_impl::send_cbk(boost::system::error_code const &_error,
                         << _error.value() << ") " << get_remote_information()
                         << " " << std::dec << queue_.size()
                         << " " << std::dec << queue_size_ << " ("
-                        << std::hex << std::setw(4) << std::setfill('0') << its_client <<"): ["
-                        << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_method << "."
-                        << std::hex << std::setw(4) << std::setfill('0') << its_session << "]";
+                        << std::hex << std::setfill('0')
+                        << std::setw(4) << its_client << "): ["
+                        << std::setw(4) << its_service << "."
+                        << std::setw(4) << its_method << "."
+                        << std::setw(4) << its_session << "]";
             }
         }
         if (!stopping) {
@@ -612,10 +612,11 @@ void udp_client_endpoint_impl::send_cbk(boost::system::error_code const &_error,
                 << get_remote_information() << " "
                 << " " << std::dec << queue_.size()
                 << " " << std::dec << queue_size_ << " ("
-                << std::hex << std::setw(4) << std::setfill('0') << its_client <<"): ["
-                << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_method << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_session << "]";
+                << std::hex << std::setfill('0')
+                << std::setw(4) << its_client << "): ["
+                << std::setw(4) << its_service << "."
+                << std::setw(4) << its_method << "."
+                << std::setw(4) << its_session << "]";
         print_status();
     }
 }

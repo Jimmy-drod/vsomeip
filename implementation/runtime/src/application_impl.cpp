@@ -204,33 +204,32 @@ bool application_impl::init() {
             do {
                 const uint16_t prev_val(val);
                 its_converter >> std::hex >> std::setw(4) >> val;
-                if (its_converter.good()) {
-                    const std::stringstream::int_type c = its_converter.eof()?'\0':its_converter.get();
-                    switch (c) {
-                    case '"':
-                    case '.':
-                    case ':':
-                    case ' ':
-                    case '\0': {
-                            if ('.' != c) {
-                                if (0xffffu == prev_val) {
-                                    VSOMEIP_INFO << "+filter "
-                                    << std::hex << std::setw(4) << std::setfill('0') << val;
-                                    client_side_logging_filter_.insert(std::make_tuple(val, ANY_INSTANCE));
-                                } else {
-                                    VSOMEIP_INFO << "+filter "
-                                    << std::hex << std::setw(4) << std::setfill('0') << prev_val << "."
-                                    << std::hex << std::setw(4) << std::setfill('0') << val;
-                                    client_side_logging_filter_.insert(std::make_tuple(prev_val, val));
-                                }
-                                val = 0xffffu;
+                const std::stringstream::int_type c = its_converter.eof()?'\0':its_converter.get();
+                switch (c) {
+                case '"':
+                case '.':
+                case ':':
+                case ' ':
+                case '\0': {
+                        if ('.' != c) {
+                            if (0xffffu == prev_val) {
+                                VSOMEIP_INFO << "+filter "
+                                << std::hex << std::setfill('0')
+                                << std::setw(4) << val;
+                                client_side_logging_filter_.insert(std::make_tuple(val, ANY_INSTANCE));
+                            } else {
+                                VSOMEIP_INFO << "+filter "
+                                << std::hex << std::setfill('0')
+                                << std::setw(4) << prev_val << "." << std::setw(4) << val;
+                                client_side_logging_filter_.insert(std::make_tuple(prev_val, val));
                             }
+                            val = 0xffffu;
                         }
-                        break;
-                    default:
-                        stop_parsing = true;
-                        break;
                     }
+                    break;
+                default:
+                    stop_parsing = true;
+                    break;
                 }
             }
             while (!stop_parsing && its_converter.good());
@@ -239,7 +238,7 @@ bool application_impl::init() {
 
     std::shared_ptr<configuration> its_configuration = get_configuration();
     if (its_configuration) {
-        VSOMEIP_INFO << "Initializing vsomeip application \"" << name_ << "\".";
+        VSOMEIP_INFO << "Initializing vsomeip (" VSOMEIP_VERSION ") application \"" << name_ << "\".";
         client_ = its_configuration->get_id(name_);
 
         // Max dispatchers is the configured maximum number of dispatchers and
@@ -301,10 +300,9 @@ bool application_impl::init() {
 #endif
 
         VSOMEIP_INFO << "Application(" << (name_ != "" ? name_ : "unnamed")
-                << ", " << std::hex << std::setw(4) << std::setfill('0') << client_
+                << ", " << std::hex << std::setfill('0') << std::setw(4) << client_
                 << ") is initialized ("
-                << std::dec << max_dispatchers_ << ", "
-                << std::dec << max_dispatch_time_ << ").";
+                << std::dec << max_dispatchers_ << ", " << max_dispatch_time_ << ").";
 
         is_initialized_ = true;
     }
@@ -361,8 +359,8 @@ void application_impl::start() {
     if (getpid() != static_cast<pid_t>(syscall(SYS_gettid))) {
         // only set threadname if calling thread isn't the main thread
         std::stringstream s;
-        s << std::hex << std::setw(4) << std::setfill('0') << client_
-                << "_io" << std::setw(2) << std::setfill('0') << 0;
+        s << std::hex << std::setfill('0')
+          << std::setw(4) << client_ << "_io" << std::setw(2) << 0;
         pthread_setname_np(pthread_self(),s.str().c_str());
     }
 #endif
@@ -433,8 +431,7 @@ void application_impl::start() {
                         {
                             std::stringstream s;
                             s << std::hex << std::setw(4) << std::setfill('0')
-                                << client_ << "_io" << std::setw(2)
-                                << std::setfill('0') << i+1;
+                                << client_ << "_io" << std::setw(2) << i+1;
                             pthread_setname_np(pthread_self(),s.str().c_str());
                         }
                         if ((VSOMEIP_IO_THREAD_NICE_LEVEL != io_thread_nice_level) && (io_thread_nice_level != nice(io_thread_nice_level))) {
@@ -471,7 +468,7 @@ void application_impl::start() {
     app_counter_mutex__.unlock();
     VSOMEIP_INFO << "io thread id from application: "
             << std::hex << std::setw(4) << std::setfill('0') << client_ << " ("
-            << name_ << ") is: " << std::hex << std::this_thread::get_id()
+            << name_ << ") is: " << std::this_thread::get_id()
 #if defined(__linux__) || defined(ANDROID)
             << " TID: " << std::dec << static_cast<int>(syscall(SYS_gettid))
 #endif
@@ -560,7 +557,9 @@ void application_impl::stop() {
 
     if (block) {
         std::unique_lock<std::mutex> block_stop_lock(block_stop_mutex_);
-        block_stop_cv_.wait(block_stop_lock, [this] { return block_stopping_; });
+        while (!block_stopping_) {
+            block_stop_cv_.wait(block_stop_lock);
+        }
         block_stopping_ = false;
     }
 }
@@ -658,7 +657,7 @@ application_impl::is_available_unlocked(
                     || _minor == DEFAULT_MINOR) {
                 its_state = found_major->second.second;
             }
-        } else if ((_major == DEFAULT_MAJOR || _major == ANY_MAJOR)) {
+        } else if (_major == DEFAULT_MAJOR || _major == ANY_MAJOR) {
             for (const auto &found_major : _found_instance->second) {
                 if (_minor == DEFAULT_MINOR || _minor == ANY_MINOR) {
                     its_state = found_major.second.second;
@@ -706,7 +705,7 @@ application_impl::is_available_unlocked(
             }
         }
     }
-    return (its_state);
+    return its_state;
 }
 
 bool application_impl::are_available(
@@ -837,9 +836,9 @@ application_impl::are_available_unlocked(available_t &_available,
     if (_available.empty()) {
         _available[_service][_instance][_major] = _minor ;
 
-        return (availability_state_e::AS_UNAVAILABLE);
+        return availability_state_e::AS_UNAVAILABLE;
     }
-    return (availability_state_e::AS_AVAILABLE);
+    return availability_state_e::AS_AVAILABLE;
 }
 
 void application_impl::send(std::shared_ptr<message> _message) {
@@ -849,16 +848,15 @@ void application_impl::send(std::shared_ptr<message> _message) {
             || (1 == client_side_logging_filter_.count(std::make_tuple(_message->get_service(), ANY_INSTANCE)))
             || (1 == client_side_logging_filter_.count(std::make_tuple(_message->get_service(), _message->get_instance()))))) {
         VSOMEIP_INFO << "application_impl::send: ("
-            << std::hex << std::setw(4) << std::setfill('0') << client_ <<"): ["
-            << std::hex << std::setw(4) << std::setfill('0') << _message->get_service() << "."
-            << std::hex << std::setw(4) << std::setfill('0') << _message->get_instance() << "."
-            << std::hex << std::setw(4) << std::setfill('0') << _message->get_method() << ":"
-            << std::hex << std::setw(4) << std::setfill('0')
-            << ((is_request) ? session_ : _message->get_session()) << ":"
-            << std::hex << std::setw(4) << std::setfill('0')
-                                << ((is_request) ? client_.load() : _message->get_client()) << "] "
-            << "type=" << std::hex << static_cast<std::uint32_t>(_message->get_message_type())
-            << " thread=" << std::hex << std::this_thread::get_id();
+            << std::hex << std::setfill('0')
+            << std::setw(4) << client_ << "): ["
+            << std::setw(4) << _message->get_service() << "."
+            << std::setw(4) << _message->get_instance() << "."
+            << std::setw(4) << _message->get_method() << ":"
+            << std::setw(4) << (is_request ? session_ : _message->get_session()) << ":"
+            << std::setw(4) << (is_request ? client_.load() : _message->get_client()) << "] "
+            << "type=" << static_cast<std::uint32_t>(_message->get_message_type())
+            << " thread=" << std::this_thread::get_id();
     }
     if (routing_) {
         // in case of requests set the request-id (client-id|session-id)
@@ -1317,10 +1315,11 @@ void application_impl::register_subscription_status_handler(service_t _service,
                 "application_impl::register_subscription_status_handler: "
                 "_handler is null, for unregistration please use "
                 "application_impl::unregister_subscription_status_handler ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _eventgroup << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _event << "]";
+                << std::hex << std::setfill('0')
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance << "."
+                << std::setw(4) << _eventgroup << "."
+                << std::setw(4) << _event << "]";
     }
 }
 
@@ -1387,13 +1386,11 @@ void application_impl::offer_event(service_t _service, instance_t _instance,
                        _cycle, _change_resets_cycle, _update_on_change);
 
                VSOMEIP_INFO << __func__
-                       << ": Event ["
-                       << std::hex << std::setw(4) << std::setfill('0')
-                       << _service << "."
-                       << std::hex << std::setw(4) << std::setfill('0')
-                       << _instance << "."
-                       << std::hex << std::setw(4) << std::setfill('0')
-                       << _notifier << "] uses configured cycle time "
+                       << std::hex << std::setfill('0')
+                       << ": Event [" << std::setw(4) << _service << "."
+                       << std::setw(4) << _instance << "."
+                       << std::setw(4) << _notifier
+                       << "] uses configured cycle time "
                        << std::dec << _cycle.count() << "ms";
            }
 
@@ -1445,7 +1442,7 @@ void application_impl::set_client(const client_t &_client) {
 session_t application_impl::get_session(bool _is_request) {
 
     if (!has_session_handling_ && !_is_request)
-        return (0);
+        return 0;
 
     std::lock_guard<std::mutex> its_lock(session_mutex_);
     if (0 == ++session_) {
@@ -1659,9 +1656,10 @@ void application_impl::on_message(std::shared_ptr<message> &&_message) {
         if (!check_for_active_subscription(its_service, its_instance,
                 static_cast<event_t>(its_method))) {
             VSOMEIP_INFO << "application_impl::on_message ["
-                << std::hex << std::setw(4) << std::setfill('0') << its_service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_instance << "."
-                << std::hex << std::setw(4) << std::setfill('0') << its_method << "]"
+                << std::hex << std::setfill('0')
+                << std::setw(4) << its_service << "."
+                << std::setw(4) << its_instance << "."
+                << std::setw(4) << its_method << "]"
                 << ": blocked as the subscription is already inactive.";
             return;
         }
@@ -1769,10 +1767,9 @@ void application_impl::main_dispatch() {
             // Cancel other waiting dispatcher
             dispatcher_condition_.notify_all();
             // Wait for new handlers to execute
-            dispatcher_condition_.wait(its_lock, [this, &its_id] {
-                    return !(is_dispatching_
-                             && (handlers_.empty() || !is_active_dispatcher(its_id)));
-                });
+            while (is_dispatching_ && (handlers_.empty() || !is_active_dispatcher(its_id))) {
+                dispatcher_condition_.wait(its_lock);
+            }
         } else {
             std::shared_ptr<sync_handler> its_handler;
             while (is_dispatching_  && is_active_dispatcher(its_id)
@@ -1820,8 +1817,7 @@ void application_impl::dispatch() {
     std::unique_lock<std::mutex> its_lock(handlers_mutex_);
     while (is_active_dispatcher(its_id)) {
         if (is_dispatching_ && handlers_.empty()) {
-             dispatcher_condition_.wait(its_lock,
-                                       [this, &its_id] { return !is_active_dispatcher(its_id); });
+             dispatcher_condition_.wait(its_lock);
              // Maybe woken up from main dispatcher
              if (handlers_.empty() && !is_active_dispatcher(its_id)) {
                  if (!is_dispatching_) {
@@ -1973,11 +1969,12 @@ void application_impl::invoke_handler(std::shared_ptr<sync_handler> &_handler) {
             || (1 == client_side_logging_filter_.count(std::make_tuple(its_sync_handler->service_id_, ANY_INSTANCE)))
             || (1 == client_side_logging_filter_.count(std::make_tuple(its_sync_handler->service_id_, its_sync_handler->instance_id_))))) {
         VSOMEIP_INFO << "Invoking handler: ("
-            << std::hex << std::setw(4) << std::setfill('0') << client_ <<"): ["
-            << std::hex << std::setw(4) << std::setfill('0') << its_sync_handler->service_id_ << "."
-            << std::hex << std::setw(4) << std::setfill('0') << its_sync_handler->instance_id_ << "."
-            << std::hex << std::setw(4) << std::setfill('0') << its_sync_handler->method_id_ << ":"
-            << std::hex << std::setw(4) << std::setfill('0') << its_sync_handler->session_id_ << "] "
+            << std::hex << std::setfill('0')
+            << std::setw(4) << client_ << "): ["
+            << std::setw(4) << its_sync_handler->service_id_ << "."
+            << std::setw(4) << its_sync_handler->instance_id_ << "."
+            << std::setw(4) << its_sync_handler->method_id_ << ":"
+            << std::setw(4) << its_sync_handler->session_id_ << "] "
             << "type=" << static_cast<std::uint32_t>(its_sync_handler->handler_type_)
             << " thread=" << std::hex << its_id;
     }
@@ -2115,7 +2112,9 @@ void application_impl::shutdown() {
 
     {
         std::unique_lock<std::mutex> its_lock(start_stop_mutex_);
-        stop_cv_.wait(its_lock, [this] {return stopped_; });
+        while(!stopped_) {
+            stop_cv_.wait(its_lock);
+        }
     }
     {
         std::lock_guard<std::mutex> its_handler_lock(handlers_mutex_);
@@ -2202,10 +2201,11 @@ void application_impl::send_back_cached_event(service_t _service,
         its_message->set_initial(true);
         on_message(std::move(its_message));
         VSOMEIP_INFO << "Sending back cached event ("
-                << std::hex << std::setw(4) << std::setfill('0') << client_ <<"): ["
-                << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _event << "]";
+                << std::hex << std::setfill('0')
+                << std::setw(4) << client_ << "): ["
+                << std::setw(4) << _service << "."
+                << std::setw(4) << _instance << "."
+                << std::setw(4) << _event << "]";
     }
 }
 
@@ -2225,12 +2225,13 @@ void application_impl::send_back_cached_eventgroup(service_t _service,
             its_message->set_initial(true);
             on_message(std::move(its_message));
             VSOMEIP_INFO << "Sending back cached event ("
-                    << std::hex << std::setw(4) << std::setfill('0') << client_ <<"): ["
-                    << std::hex << std::setw(4) << std::setfill('0') << _service << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << _instance << "."
-                    << std::hex << std::setw(4) << std::setfill('0') << its_event_id
+                    << std::hex << std::setfill('0')
+                    << std::setw(4) << client_ << "): ["
+                    << std::setw(4) << _service << "."
+                    << std::setw(4) << _instance << "."
+                    << std::setw(4) << its_event_id
                     << "] from eventgroup "
-                    << std::hex << std::setw(4) << std::setfill('0') << _eventgroup;
+                    << std::setw(4) << _eventgroup;
         }
     }
 }
@@ -2430,17 +2431,19 @@ void application_impl::print_blocking_call(const std::shared_ptr<sync_handler>& 
     switch (_handler->handler_type_) {
         case handler_type_e::AVAILABILITY:
             VSOMEIP_WARNING << "BLOCKING CALL AVAILABILITY("
-                << std::hex << std::setw(4) << std::setfill('0') << get_client() <<"): ["
-                << std::hex << std::setw(4) << std::setfill('0') << _handler->service_id_ << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _handler->instance_id_ << "]";
+                << std::hex << std::setfill('0')
+                << std::setw(4) << get_client() << "): ["
+                << std::setw(4) << _handler->service_id_ << "."
+                << std::setw(4) << _handler->instance_id_ << "]";
             break;
         case handler_type_e::MESSAGE:
             VSOMEIP_WARNING << "BLOCKING CALL MESSAGE("
-                << std::hex << std::setw(4) << std::setfill('0') << get_client() <<"): ["
-                << std::hex << std::setw(4) << std::setfill('0') << _handler->service_id_ << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _handler->instance_id_ << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _handler->method_id_ << ":"
-                << std::hex << std::setw(4) << std::setfill('0') << _handler->session_id_ << "]";
+                << std::hex << std::setfill('0')
+                << std::setw(4) << get_client() << "): ["
+                << std::setw(4) << _handler->service_id_ << "."
+                << std::setw(4) << _handler->instance_id_ << "."
+                << std::setw(4) << _handler->method_id_ << ":"
+                << std::setw(4) << _handler->session_id_ << "]";
             break;
         case handler_type_e::STATE:
             VSOMEIP_WARNING << "BLOCKING CALL STATE("
@@ -2448,19 +2451,20 @@ void application_impl::print_blocking_call(const std::shared_ptr<sync_handler>& 
             break;
         case handler_type_e::SUBSCRIPTION:
             VSOMEIP_WARNING << "BLOCKING CALL SUBSCRIPTION("
-                << std::hex << std::setw(4) << std::setfill('0') << get_client() <<"): ["
-                << std::hex << std::setw(4) << std::setfill('0') << _handler->service_id_ << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _handler->instance_id_ << "."
-                << std::hex << std::setw(4) << std::setfill('0') << _handler->eventgroup_id_ << ":"
-                << std::hex << std::setw(4) << std::setfill('0') << _handler->method_id_ << "]";
+                << std::hex << std::setfill('0')
+                << std::setw(4) << get_client() << "): ["
+                << std::setw(4) << _handler->service_id_ << "."
+                << std::setw(4) << _handler->instance_id_ << "."
+                << std::setw(4) << _handler->eventgroup_id_ << ":"
+                << std::setw(4) << _handler->method_id_ << "]";
             break;
         case handler_type_e::OFFERED_SERVICES_INFO:
             VSOMEIP_WARNING << "BLOCKING CALL OFFERED_SERVICES_INFO("
-                << std::hex << std::setw(4) << std::setfill('0') << get_client() <<")";
+                << std::hex << std::setw(4) << std::setfill('0') << get_client() << ")";
             break;
         case handler_type_e::WATCHDOG:
             VSOMEIP_WARNING << "BLOCKING CALL WATCHDOG("
-                << std::hex << std::setw(4) << std::setfill('0') << get_client() <<")";
+                << std::hex << std::setw(4) << std::setfill('0') << get_client() << ")";
             break;
         case handler_type_e::UNKNOWN:
             VSOMEIP_WARNING << "BLOCKING CALL UNKNOWN("
@@ -2890,7 +2894,7 @@ void application_impl::subscribe_with_debounce(service_t _service, instance_t _i
 
         if (check_subscription_state(_service, _instance, _eventgroup, _event)) {
 
-            auto its_filter = std::make_shared<debounce_filter_t>(_filter);
+            auto its_filter = std::make_shared<debounce_filter_impl_t>(_filter);
             routing_->subscribe(client_, get_sec_client(),
                     _service, _instance, _eventgroup, _major,
                     _event, its_filter);
@@ -2907,11 +2911,11 @@ application_impl::is_local_endpoint(const boost::asio::ip::address &_unicast,
         boost::asio::ip::tcp::socket its_socket(io_, its_endpoint);
         its_socket.close();
 
-        return (true);
+        return true;
     } catch (...) {
     }
 
-    return (false);
+    return false;
 }
 
 void application_impl::register_message_acceptance_handler(

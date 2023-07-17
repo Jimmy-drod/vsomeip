@@ -141,18 +141,23 @@ instance_t endpoint_impl<Protocol>::get_instance(service_t _service) {
     if (its_host)
         its_instance = its_host->find_instance(_service, this);
 
-    return (its_instance);
+    return its_instance;
 }
 
 // Instantiate template
-#if defined(__linux__) || defined(ANDROID)
-template class endpoint_impl<boost::asio::local::stream_protocol>;
+#ifdef __linux__
 #if VSOMEIP_BOOST_VERSION < 106600
 template class endpoint_impl<boost::asio::local::stream_protocol_ext>;
-template class endpoint_impl<boost::asio::ip::udp_ext>;
+#else
+template class endpoint_impl<boost::asio::local::stream_protocol>;
 #endif
 #endif
+
 template class endpoint_impl<boost::asio::ip::tcp>;
 template class endpoint_impl<boost::asio::ip::udp>;
+
+#if VSOMEIP_BOOST_VERSION < 106600
+template class endpoint_impl<boost::asio::ip::udp_ext>;
+#endif
 
 } // namespace vsomeip_v3
